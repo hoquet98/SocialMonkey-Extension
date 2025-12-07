@@ -6,7 +6,6 @@ const SOCIALMONKEY_CONFIG = {
   // Change this to your dev server URL during development
   // Production: 'https://socialmonkey.ai'
   // Development: 'http://localhost:3000' or your dev server URL
-  //API_BASE_URL: 'https://b97bdf83-839c-4546-95ce-99da2e78b918-00-12ls58ikhbzj5.spock.replit.dev',
   API_BASE_URL: 'https://socialmonkey.ai',
   // API Endpoints (relative to API_BASE_URL)
   ENDPOINTS: {
