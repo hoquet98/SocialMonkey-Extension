@@ -587,6 +587,13 @@ function processTweetElement(tweetElement) {
       });
     }
   }
+
+  // Check and mark if user has replied to this tweet (if available)
+  if (window.SM_ReplyTracker) {
+    window.SM_ReplyTracker.checkAndMarkRepliedTweet(tweetElement, tweetData).catch(err => {
+      console.error('[SM Twitter] Failed to check replied status:', err);
+    });
+  }
 }
 
 /**

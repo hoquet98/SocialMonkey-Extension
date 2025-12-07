@@ -43,6 +43,7 @@
         "content_scripts/shared/utils.js",
         "content_scripts/twitter/twitter-followers.js",
         "content_scripts/twitter/twitter-inspirations.js",
+        "content_scripts/twitter/twitter-reply-tracker.js",
         "content_scripts/twitter/twitter.js",
         "content_scripts/twitter/twitter-advanced.js"
       ],

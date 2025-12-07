@@ -36,7 +36,7 @@ const sharedFiles = [
 
 // Platform-specific advanced features
 const advancedFeatures = {
-  twitter: ['twitter-followers.js', 'twitter-inspirations.js', 'twitter-advanced.js']
+  twitter: ['twitter-followers.js', 'twitter-inspirations.js', 'twitter-reply-tracker.js', 'twitter-advanced.js']
 };
 
 console.log('🐵 SocialMonkey Extension Builder\n');
