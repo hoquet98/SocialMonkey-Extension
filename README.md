@@ -28,12 +28,31 @@ SocialMonkey_Extension/
 ├── popup.html                       # Extension popup UI
 ├── popup.css                        # Popup styling (light/dark theme)
 ├── popup.js                         # Popup functionality
+├── background.js                    # Background service worker
+├── config.js                        # Configuration and feature flags
+├── build-extensions.js              # Build script for individual platforms
 ├── icons/                           # Extension icons
+├── docs/                            # General documentation
+│   ├── ARCHITECTURE.md              # System architecture overview
+│   ├── AUTH_IMPLEMENTATION.md       # OAuth authentication guide
+│   ├── BACKEND_INTEGRATION.md       # Backend API integration
+│   ├── BUILD.md                     # Build system documentation
+│   ├── CONFIG_README.md             # Configuration guide
+│   ├── QUICKSTART.md                # Quick start guide
+│   └── twitter/                     # Twitter-specific documentation
+│       ├── FEATURE1_IMPLEMENTATION.md    # High-Impact tweets feature
+│       ├── FOLLOWER_GLOW.md             # Follower detection feature
+│       ├── REPLY_STARTERS_V2.md         # AI reply starters feature
+│       ├── REPLY_STARTERS_TESTING.md    # Testing guide
+│       └── TWITTER_DOM_SELECTORS.md     # Twitter DOM reference
 ├── content_scripts/
 │   ├── shared/
 │   │   └── utils.js                 # Shared utilities for all platforms
 │   ├── twitter/
-│   │   └── twitter.js               # Twitter-specific content script
+│   │   ├── twitter.js               # Main Twitter content script
+│   │   ├── twitter-advanced.js      # High-Impact tweet detection
+│   │   ├── twitter-followers.js     # Follower glow feature
+│   │   └── twitter-inspirations.js  # Save inspirational posts
 │   ├── facebook/
 │   │   └── facebook.js              # Facebook-specific content script
 │   ├── instagram/
@@ -48,23 +67,17 @@ SocialMonkey_Extension/
 │   │   └── reddit.js                # Reddit-specific content script
 │   └── snapchat/
 │       └── snapchat.js              # Snapchat-specific content script
-└── builds/
-    ├── twitter/
-    │   └── manifest.json            # Twitter-only extension manifest
-    ├── facebook/
-    │   └── manifest.json            # Facebook-only extension manifest
-    ├── instagram/
-    │   └── manifest.json            # Instagram-only extension manifest
-    ├── tiktok/
-    │   └── manifest.json            # TikTok-only extension manifest
-    ├── linkedin/
-    │   └── manifest.json            # LinkedIn-only extension manifest
-    ├── youtube/
-    │   └── manifest.json            # YouTube-only extension manifest
-    ├── reddit/
-    │   └── manifest.json            # Reddit-only extension manifest
-    └── snapchat/
-        └── manifest.json            # Snapchat-only extension manifest
+├── manifests/
+│   └── twitter.json                 # Twitter-specific manifest
+└── builds/                          # Generated build outputs (gitignored)
+    ├── twitter/                     # Built Twitter extension
+    ├── facebook/                    # Built Facebook extension
+    ├── instagram/                   # Built Instagram extension
+    ├── tiktok/                      # Built TikTok extension
+    ├── linkedin/                    # Built LinkedIn extension
+    ├── youtube/                     # Built YouTube extension
+    ├── reddit/                      # Built Reddit extension
+    └── snapchat/                    # Built Snapchat extension
 ```
 
 ## Development
@@ -94,13 +107,31 @@ This will copy all necessary files to each platform's build directory in `builds
 3. Select a specific platform folder from `builds/<platform>/`
 4. The extension will only work on that specific platform
 
+## Documentation
+
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and structure
+- **[Configuration Guide](docs/CONFIG_README.md)** - Customize settings and features
+- **[Build System](docs/BUILD.md)** - Build individual platform extensions
+- **[Backend Integration](docs/BACKEND_INTEGRATION.md)** - Connect to SocialMonkey API
+- **[Authentication](docs/AUTH_IMPLEMENTATION.md)** - OAuth implementation guide
+
+### Twitter/X Features Documentation
+
+- **[High-Impact Tweet Detection](docs/twitter/FEATURE1_IMPLEMENTATION.md)** - Identify high-engagement opportunities
+- **[AI Reply Starters](docs/twitter/REPLY_STARTERS_V2.md)** - Generate contextual reply suggestions
+- **[Follower Glow](docs/twitter/FOLLOWER_GLOW.md)** - Highlight recent followers
+- **[Save Inspirations](docs/twitter/FOLLOWER_GLOW.md#inspirations-feature)** - Bookmark tweets for later
+- **[DOM Selectors Reference](docs/twitter/TWITTER_DOM_SELECTORS.md)** - Twitter element selectors
+
 ## Features by Platform
 
 ### Twitter/X
-- Schedule button in tweet composer
-- Quick actions panel (Analytics, Schedule, AI Generate)
-- AI enhancement button for tweets
-- Real-time monitoring and reply suggestions
+- **High-Impact Tweet Detection** - AI-powered scoring of tweets based on engagement potential
+- **AI Reply Starters** - Contextual reply suggestions in multiple categories (agreeing, disagreeing, asking questions, etc.)
+- **Follower Glow** - Visual indicators for recent followers in your feed
+- **Save Inspirations** - Lightbulb icon to save tweets for later reference
+- **OAuth Integration** - Secure authentication with SocialMonkey backend
 
 ### Facebook
 - Schedule button in post composer
