@@ -30,6 +30,9 @@ const GREEN_CHECKMARK_SVG = `
 let repliedTweetsCache = new Set();
 let isCacheInitialized = false;
 
+// Temporary storage for pending reply (tweet ID user clicked to reply to)
+let pendingReplyTweetId = null;
+
 // ==========================================
 // STORAGE FUNCTIONS
 // ==========================================
@@ -194,8 +197,67 @@ async function initializeCache() {
 // ==========================================
 
 /**
- * Attach click handlers to the "Reply" button in the compose dialog
- * This fires when user actually submits a reply, not when they open the dialog
+ * Step 1: Attach click handlers to reply icons in the feed
+ * This captures which tweet the user wants to reply to
+ */
+function attachReplyIconHandlers() {
+  const observer = new MutationObserver(() => {
+    // Find all reply buttons not yet tracked
+    const replyButtons = document.querySelectorAll('[data-testid="reply"]:not(.sm-reply-icon-tracked)');
+
+    replyButtons.forEach(button => {
+      // Mark as tracked to avoid duplicate handlers
+      button.classList.add('sm-reply-icon-tracked');
+
+      // Add click listener
+      button.addEventListener('click', (e) => {
+        // Find parent tweet element
+        const tweetElement = button.closest('[data-testid="tweet"]');
+        if (!tweetElement) {
+          if (REPLY_TRACKER_CONFIG.DEBUG) {
+            logDebug('Twitter:ReplyTracker:IconClick', 'Could not find parent tweet element');
+          }
+          return;
+        }
+
+        // Extract tweet ID
+        const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
+        const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
+
+        if (tweetId) {
+          // Store temporarily - this is the tweet they're replying to
+          pendingReplyTweetId = tweetId;
+          
+          console.log(`[ReplyTracker] Blurb clicked for Post: ${tweetId}`);
+          
+          if (REPLY_TRACKER_CONFIG.DEBUG) {
+            logDebug('Twitter:ReplyTracker:IconClick', `Reply icon clicked for tweet: ${tweetId} (pending)`);
+          }
+        } else {
+          if (REPLY_TRACKER_CONFIG.DEBUG) {
+            logDebug('Twitter:ReplyTracker:IconClick', 'Could not extract tweet ID from element');
+          }
+        }
+      }, { passive: true });
+    });
+
+    if (REPLY_TRACKER_CONFIG.DEBUG && replyButtons.length > 0) {
+      logDebug('Twitter:ReplyTracker:Handlers', `Attached handlers to ${replyButtons.length} new reply icons`);
+    }
+  });
+
+  // Observe the entire document for new reply buttons
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  logDebug('Twitter:ReplyTracker', 'Reply icon handlers observer started');
+}
+
+/**
+ * Step 2: Attach click handlers to the "Reply" submit button in dialogs
+ * This confirms the user actually submitted the reply
  */
 function attachReplySubmitHandlers() {
   const observer = new MutationObserver(() => {
@@ -204,76 +266,133 @@ function attachReplySubmitHandlers() {
     
     replyDialogs.forEach(dialog => {
       // Find the Reply button in this dialog
-      const replyButton = dialog.querySelector('[data-testid="tweetButton"]:not(.sm-reply-tracked)');
+      const replyButton = dialog.querySelector('[data-testid="tweetButton"]:not(.sm-reply-submit-tracked)');
       
       if (replyButton) {
         // Mark as tracked
-        replyButton.classList.add('sm-reply-tracked');
+        replyButton.classList.add('sm-reply-submit-tracked');
         
         // Add click listener
-        replyButton.addEventListener('click', (e) => {
-          // Find the original tweet in the dialog (the one being replied to)
-          const originalTweet = dialog.querySelector('[data-testid="tweet"]');
-          
-          if (!originalTweet) {
-            if (REPLY_TRACKER_CONFIG.DEBUG) {
-              logDebug('Twitter:ReplyTracker:Submit', 'Could not find original tweet in dialog');
-            }
-            return;
-          }
-          
-          // Extract tweet ID from the original tweet
-          const tweetLink = originalTweet.querySelector('a[href*="/status/"]');
-          const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
-          
-          if (tweetId) {
-            if (REPLY_TRACKER_CONFIG.DEBUG) {
-              logDebug('Twitter:ReplyTracker:Submit', `Reply submitted for tweet: ${tweetId}`);
-            }
-            
-            // Store the replied tweet
-            addRepliedTweet(tweetId).then(() => {
-              // Update cache immediately
-              repliedTweetsCache.add(tweetId);
-              
-              // Find and mark the reply button in the feed
-              setTimeout(() => {
-                const feedTweet = document.querySelector(`[data-testid="tweet"] a[href*="/status/${tweetId}"]`)?.closest('[data-testid="tweet"]');
-                if (feedTweet) {
-                  const feedReplyButton = feedTweet.querySelector('[data-testid="reply"]');
-                  if (feedReplyButton) {
-                    markReplyIconAsFilled(feedReplyButton);
-                  }
-                }
-              }, 100);
-              
-              if (REPLY_TRACKER_CONFIG.DEBUG) {
-                logDebug('Twitter:ReplyTracker:Submit', `Stored replied tweet: ${tweetId}`);
-              }
-            }).catch(err => {
-              console.error('[SM ReplyTracker] Failed to store replied tweet:', err);
-            });
-          } else {
-            if (REPLY_TRACKER_CONFIG.DEBUG) {
-              logDebug('Twitter:ReplyTracker:Submit', 'Could not extract tweet ID from dialog');
-            }
-          }
-        }, { passive: true });
+        replyButton.addEventListener('click', handleReplySubmit, { passive: true });
         
         if (REPLY_TRACKER_CONFIG.DEBUG) {
-          logDebug('Twitter:ReplyTracker:Handlers', 'Attached handler to Reply submit button');
+          logDebug('Twitter:ReplyTracker:Handlers', 'Attached handler to Reply submit button (dialog)');
         }
+      }
+    });
+    
+    // Also find inline reply buttons (on post details page)
+    const inlineReplyButtons = document.querySelectorAll('[data-testid="tweetButtonInline"]:not(.sm-reply-submit-tracked)');
+    
+    inlineReplyButtons.forEach(button => {
+      // Mark as tracked
+      button.classList.add('sm-reply-submit-tracked');
+      
+      // Add click listener
+      button.addEventListener('click', handleReplySubmit, { passive: true });
+      
+      if (REPLY_TRACKER_CONFIG.DEBUG) {
+        logDebug('Twitter:ReplyTracker:Handlers', 'Attached handler to Reply submit button (inline)');
       }
     });
   });
 
-  // Observe the entire document for new dialogs
+  // Observe the entire document for new dialogs and inline reply areas
   observer.observe(document.body, {
     childList: true,
     subtree: true
   });
 
   logDebug('Twitter:ReplyTracker', 'Reply submit handlers observer started');
+}
+
+/**
+ * Handle reply submission (common handler for both dialog and inline)
+ */
+function handleReplySubmit(e) {
+  let tweetId = pendingReplyTweetId;
+  
+  // If no pending ID, check if we're on a post details page
+  if (!tweetId) {
+    const urlMatch = window.location.href.match(/\/status\/(\d+)/);
+    if (urlMatch) {
+      tweetId = urlMatch[1];
+      console.log(`[ReplyTracker] Replied to Post: ${tweetId}`);
+    }
+  } else {
+    console.log(`[ReplyTracker] Replied to Post: ${tweetId}`);
+  }
+  
+  if (!tweetId) {
+    console.log('[ReplyTracker] Reply clicked but no tweet ID found');
+    if (REPLY_TRACKER_CONFIG.DEBUG) {
+      logDebug('Twitter:ReplyTracker:Submit', 'No tweet ID found');
+    }
+    return;
+  }
+  
+  if (REPLY_TRACKER_CONFIG.DEBUG) {
+    logDebug('Twitter:ReplyTracker:Submit', `Reply submitted for tweet: ${tweetId}`);
+  }
+  
+  // Store the replied tweet
+  addRepliedTweet(tweetId).then(() => {
+    // Update cache immediately
+    repliedTweetsCache.add(tweetId);
+    
+    // Find and mark the reply button in the feed
+    setTimeout(() => {
+      const feedTweet = document.querySelector(`[data-testid="tweet"] a[href*="/status/${tweetId}"]`)?.closest('[data-testid="tweet"]');
+      if (feedTweet) {
+        const feedReplyButton = feedTweet.querySelector('[data-testid="reply"]');
+        if (feedReplyButton) {
+          markReplyIconAsFilled(feedReplyButton);
+        }
+      }
+    }, 100);
+    
+    if (REPLY_TRACKER_CONFIG.DEBUG) {
+      logDebug('Twitter:ReplyTracker:Submit', `Stored replied tweet: ${tweetId}`);
+    }
+    
+    // Clear pending ID
+    pendingReplyTweetId = null;
+  }).catch(err => {
+    console.error('[SM ReplyTracker] Failed to store replied tweet:', err);
+    pendingReplyTweetId = null;
+  });
+}
+
+/**
+ * Step 3: Detect when dialog closes without submitting
+ * Clear the pending tweet ID
+ */
+function attachDialogCloseHandlers() {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.removedNodes.forEach((node) => {
+        // Check if a dialog was removed
+        if (node.nodeType === 1 && (node.getAttribute('role') === 'dialog' || node.querySelector('[role="dialog"]'))) {
+          console.log('[ReplyTracker] Dialog Closed');
+          
+          if (pendingReplyTweetId) {
+            console.log(`[ReplyTracker] Discarding pending Post: ${pendingReplyTweetId}`);
+            if (REPLY_TRACKER_CONFIG.DEBUG) {
+              logDebug('Twitter:ReplyTracker:DialogClose', `Dialog closed, discarding pending tweet: ${pendingReplyTweetId}`);
+            }
+            pendingReplyTweetId = null;
+          }
+        }
+      });
+    });
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  logDebug('Twitter:ReplyTracker', 'Dialog close handler observer started');
 }
 
 /**
@@ -293,6 +412,47 @@ function checkVisibleTweets() {
       }
     }
   });
+}
+
+/**
+ * Check if we're on a post details page and log it
+ */
+function checkPostDetailsPage() {
+  const urlMatch = window.location.href.match(/\/status\/(\d+)/);
+  if (urlMatch) {
+    const postId = urlMatch[1];
+    console.log(`[ReplyTracker] Opened Post: ${postId}`);
+    
+    if (REPLY_TRACKER_CONFIG.DEBUG) {
+      logDebug('Twitter:ReplyTracker:PageLoad', `Viewing post details: ${postId}`);
+    }
+  }
+}
+
+/**
+ * Monitor URL changes to detect when user navigates to post details
+ */
+function observeUrlChanges() {
+  let lastUrl = window.location.href;
+  
+  // Check on initial load
+  checkPostDetailsPage();
+  
+  // Monitor for URL changes (Twitter is a SPA)
+  const observer = new MutationObserver(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrl) {
+      lastUrl = currentUrl;
+      checkPostDetailsPage();
+    }
+  });
+  
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+  
+  logDebug('Twitter:ReplyTracker', 'URL observer started');
 }
 
 /**
@@ -453,11 +613,20 @@ async function initReplyTracker() {
   // Initialize cache from storage
   await initializeCache();
 
-  // Attach click handlers to Reply submit buttons in dialogs
+  // Step 1: Track reply icon clicks (captures tweet ID)
+  attachReplyIconHandlers();
+  
+  // Step 2: Track Reply submit button clicks (confirms reply)
   attachReplySubmitHandlers();
+  
+  // Step 3: Track dialog closes (clears pending ID if not submitted)
+  attachDialogCloseHandlers();
   
   // Observe feed and mark replied tweets
   observeFeedForRepliedTweets();
+  
+  // Observe URL changes for post details pages
+  observeUrlChanges();
 
   logDebug('Twitter:ReplyTracker', '✓ Reply tracker initialized');
 }
