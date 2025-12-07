@@ -1,0 +1,93 @@
+{
+  "manifest_version": 3,
+  "name": "SocialMonkey - All Platforms",
+  "version": "1.0.0",
+  "description": "Schedule and automate posts across all 8 social media platforms with AI-powered content generation",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "alarms",
+    "notifications",
+    "contextMenus"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://twitter.com/*",
+    "https://x.com/*",
+    "https://www.facebook.com/*",
+    "https://www.instagram.com/*",
+    "https://www.tiktok.com/*",
+    "https://www.linkedin.com/*",
+    "https://www.youtube.com/*",
+    "https://www.reddit.com/*",
+    "https://web.snapchat.com/*",
+    "https://socialmonkey.ai/*",
+    "https://*.replit.dev/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://twitter.com/*", "https://x.com/*"],
+      "js": [
+        "config.js",
+        "content_scripts/shared/utils.js",
+        "content_scripts/twitter/twitter-followers.js",
+        "content_scripts/twitter/twitter.js",
+        "content_scripts/twitter/twitter-advanced.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.facebook.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/facebook/facebook.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/instagram/instagram.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.tiktok.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/tiktok/tiktok.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/linkedin/linkedin.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/youtube/youtube.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.reddit.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/reddit/reddit.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://web.snapchat.com/*"],
+      "js": ["content_scripts/shared/utils.js", "content_scripts/snapchat/snapchat.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

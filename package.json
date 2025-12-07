@@ -1,0 +1,38 @@
+{
+  "name": "socialmonkey-extension",
+  "version": "1.0.0",
+  "description": "SocialMonkey Chrome Extension - Multi-platform social media automation and engagement tools",
+  "private": true,
+  "scripts": {
+    "build": "node build-extensions.js",
+    "build:twitter": "node build-extensions.js twitter",
+    "build:facebook": "node build-extensions.js facebook",
+    "build:instagram": "node build-extensions.js instagram",
+    "build:tiktok": "node build-extensions.js tiktok",
+    "build:linkedin": "node build-extensions.js linkedin",
+    "build:youtube": "node build-extensions.js youtube",
+    "build:reddit": "node build-extensions.js reddit",
+    "build:snapchat": "node build-extensions.js snapchat",
+    "build:master": "node build-extensions.js master",
+    "watch": "node build-extensions.js --watch",
+    "watch:twitter": "node build-extensions.js twitter --watch",
+    "clean": "node build-extensions.js --clean",
+    "dev": "pnpm run watch:twitter",
+    "lint": "echo 'Linting not configured yet'",
+    "test": "echo 'Tests not configured yet'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "social-media",
+    "twitter",
+    "facebook",
+    "instagram",
+    "automation"
+  ],
+  "author": "SocialMonkey",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "chokidar": "^3.5.3",
+    "fs-extra": "^11.2.0"
+  }
+}

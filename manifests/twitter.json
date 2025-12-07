@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "SocialMonkey for Twitter/X",
+  "version": "1.0.0",
+  "description": "Schedule and automate Twitter/X posts with AI-powered content generation. Part of the SocialMonkey suite.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "alarms",
+    "notifications",
+    "contextMenus"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://twitter.com/*",
+    "https://x.com/*",
+    "https://socialmonkey.ai/*",
+    "https://*.replit.dev/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://twitter.com/*", "https://x.com/*"],
+      "js": [
+        "config.js",
+        "content_scripts/shared/utils.js",
+        "content_scripts/twitter/twitter-followers.js",
+        "content_scripts/twitter/twitter-inspirations.js",
+        "content_scripts/twitter/twitter.js",
+        "content_scripts/twitter/twitter-advanced.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/icon32.png"],
+      "matches": ["https://twitter.com/*", "https://x.com/*"]
+    }
+  ]
+}
