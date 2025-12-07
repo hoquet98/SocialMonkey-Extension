@@ -177,7 +177,7 @@ function attachReplyClickHandlers() {
       button.classList.add('sm-reply-tracked');
 
       // Add click listener
-      button.addEventListener('click', async (e) => {
+      button.addEventListener('click', (e) => {
         // Find parent tweet element
         const tweetElement = button.closest('[data-testid="tweet"]');
         if (!tweetElement) {
@@ -196,11 +196,17 @@ function attachReplyClickHandlers() {
             logDebug('Twitter:ReplyTracker:Click', `Reply button clicked for tweet: ${tweetId}`);
           }
 
-          // Store the replied tweet
-          await addRepliedTweet(tweetId);
+          // Store the replied tweet (async, but don't wait)
+          addRepliedTweet(tweetId).then(() => {
+            // Immediately update UI after storage
+            markReplyIconAsFilled(button);
 
-          // Immediately update UI
-          markReplyIconAsFilled(button);
+            if (REPLY_TRACKER_CONFIG.DEBUG) {
+              logDebug('Twitter:ReplyTracker:Click', `Stored and marked tweet: ${tweetId}`);
+            }
+          }).catch(err => {
+            console.error('[SM ReplyTracker] Failed to store replied tweet:', err);
+          });
         } else {
           if (REPLY_TRACKER_CONFIG.DEBUG) {
             logDebug('Twitter:ReplyTracker:Click', 'Could not extract tweet ID from element');
