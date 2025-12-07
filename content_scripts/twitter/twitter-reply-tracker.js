@@ -14,9 +14,17 @@ const SM_REPLIED_TWEETS_KEY = 'smRepliedTweets';
 // Configuration
 const REPLY_TRACKER_CONFIG = {
   MAX_STORED_REPLIES: 500,  // Maximum number of replied tweets to store
-  PURPLE_COLOR: 'rgb(168, 85, 247)',  // Purple color for filled icons
+  GREEN_COLOR: 'rgb(0, 186, 124)',  // Green checkmark color
   DEBUG: true
 };
+
+// Green checkmark SVG
+const GREEN_CHECKMARK_SVG = `
+  <svg viewBox="0 0 24 24" width="20" height="20" style="display: block;">
+    <circle cx="12" cy="12" r="10" fill="rgb(0, 186, 124)" />
+    <path d="M9 12l2 2 4-4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
 
 // In-memory cache for fast lookup
 let repliedTweetsCache = new Set();
@@ -32,15 +40,23 @@ let isCacheInitialized = false;
  */
 async function getStoredReplies() {
   return new Promise((resolve) => {
-    chrome.storage.local.get([SM_REPLIED_TWEETS_KEY], (result) => {
-      const replies = result[SM_REPLIED_TWEETS_KEY] || [];
+    try {
+      chrome.storage.local.get([SM_REPLIED_TWEETS_KEY], (result) => {
+        // Ensure we always get an array, even if storage is empty
+        const replies = Array.isArray(result[SM_REPLIED_TWEETS_KEY])
+          ? result[SM_REPLIED_TWEETS_KEY]
+          : [];
 
-      if (REPLY_TRACKER_CONFIG.DEBUG) {
-        logDebug('Twitter:ReplyTracker:Storage', `Retrieved ${replies.length} replied tweets from storage`);
-      }
+        if (REPLY_TRACKER_CONFIG.DEBUG) {
+          logDebug('Twitter:ReplyTracker:Storage', `Retrieved ${replies.length} replied tweets from storage`);
+        }
 
-      resolve(replies);
-    });
+        resolve(replies);
+      });
+    } catch (error) {
+      console.error('[SM ReplyTracker] Error getting storage:', error);
+      resolve([]); // Return empty array on error
+    }
   });
 }
 
@@ -150,83 +166,152 @@ async function hasReplied(tweetId) {
  * @returns {Promise<void>}
  */
 async function initializeCache() {
-  const replies = await getStoredReplies();
+  try {
+    const replies = await getStoredReplies();
 
-  repliedTweetsCache = new Set(replies.map(r => r.id));
-  isCacheInitialized = true;
+    // Ensure replies is an array before mapping
+    if (Array.isArray(replies)) {
+      repliedTweetsCache = new Set(replies.map(r => r.id));
+    } else {
+      console.error('[SM ReplyTracker] Retrieved replies is not an array:', replies);
+      repliedTweetsCache = new Set();
+    }
 
-  if (REPLY_TRACKER_CONFIG.DEBUG) {
-    logDebug('Twitter:ReplyTracker:Cache', `Initialized cache with ${repliedTweetsCache.size} tweet IDs`);
+    isCacheInitialized = true;
+
+    if (REPLY_TRACKER_CONFIG.DEBUG) {
+      logDebug('Twitter:ReplyTracker:Cache', `Initialized cache with ${repliedTweetsCache.size} tweet IDs`);
+    }
+  } catch (error) {
+    console.error('[SM ReplyTracker] Error initializing cache:', error);
+    repliedTweetsCache = new Set();
+    isCacheInitialized = true;
   }
 }
 
 // ==========================================
-// CLICK HANDLER INTEGRATION
+// CLICK HANDLER INTEGRATION  
 // ==========================================
 
 /**
- * Attach click handlers to all Reply buttons in the feed
+ * Attach click handlers to the "Reply" button in the compose dialog
+ * This fires when user actually submits a reply, not when they open the dialog
  */
-function attachReplyClickHandlers() {
+function attachReplySubmitHandlers() {
   const observer = new MutationObserver(() => {
-    // Find all reply buttons not yet tracked
-    const replyButtons = document.querySelectorAll('[data-testid="reply"]:not(.sm-reply-tracked)');
-
-    replyButtons.forEach(button => {
-      // Mark as tracked to avoid duplicate handlers
-      button.classList.add('sm-reply-tracked');
-
-      // Add click listener
-      button.addEventListener('click', (e) => {
-        // Find parent tweet element
-        const tweetElement = button.closest('[data-testid="tweet"]');
-        if (!tweetElement) {
-          if (REPLY_TRACKER_CONFIG.DEBUG) {
-            logDebug('Twitter:ReplyTracker:Click', 'Could not find parent tweet element');
-          }
-          return;
-        }
-
-        // Extract tweet ID
-        const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
-        const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
-
-        if (tweetId) {
-          if (REPLY_TRACKER_CONFIG.DEBUG) {
-            logDebug('Twitter:ReplyTracker:Click', `Reply button clicked for tweet: ${tweetId}`);
-          }
-
-          // Store the replied tweet (async, but don't wait)
-          addRepliedTweet(tweetId).then(() => {
-            // Immediately update UI after storage
-            markReplyIconAsFilled(button);
-
+    // Find the Reply submit button in dialogs (not feed buttons)
+    const replyDialogs = document.querySelectorAll('[role="dialog"]');
+    
+    replyDialogs.forEach(dialog => {
+      // Find the Reply button in this dialog
+      const replyButton = dialog.querySelector('[data-testid="tweetButton"]:not(.sm-reply-tracked)');
+      
+      if (replyButton) {
+        // Mark as tracked
+        replyButton.classList.add('sm-reply-tracked');
+        
+        // Add click listener
+        replyButton.addEventListener('click', (e) => {
+          // Find the original tweet in the dialog (the one being replied to)
+          const originalTweet = dialog.querySelector('[data-testid="tweet"]');
+          
+          if (!originalTweet) {
             if (REPLY_TRACKER_CONFIG.DEBUG) {
-              logDebug('Twitter:ReplyTracker:Click', `Stored and marked tweet: ${tweetId}`);
+              logDebug('Twitter:ReplyTracker:Submit', 'Could not find original tweet in dialog');
             }
-          }).catch(err => {
-            console.error('[SM ReplyTracker] Failed to store replied tweet:', err);
-          });
-        } else {
-          if (REPLY_TRACKER_CONFIG.DEBUG) {
-            logDebug('Twitter:ReplyTracker:Click', 'Could not extract tweet ID from element');
+            return;
           }
+          
+          // Extract tweet ID from the original tweet
+          const tweetLink = originalTweet.querySelector('a[href*="/status/"]');
+          const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
+          
+          if (tweetId) {
+            if (REPLY_TRACKER_CONFIG.DEBUG) {
+              logDebug('Twitter:ReplyTracker:Submit', `Reply submitted for tweet: ${tweetId}`);
+            }
+            
+            // Store the replied tweet
+            addRepliedTweet(tweetId).then(() => {
+              // Update cache immediately
+              repliedTweetsCache.add(tweetId);
+              
+              // Find and mark the reply button in the feed
+              setTimeout(() => {
+                const feedTweet = document.querySelector(`[data-testid="tweet"] a[href*="/status/${tweetId}"]`)?.closest('[data-testid="tweet"]');
+                if (feedTweet) {
+                  const feedReplyButton = feedTweet.querySelector('[data-testid="reply"]');
+                  if (feedReplyButton) {
+                    markReplyIconAsFilled(feedReplyButton);
+                  }
+                }
+              }, 100);
+              
+              if (REPLY_TRACKER_CONFIG.DEBUG) {
+                logDebug('Twitter:ReplyTracker:Submit', `Stored replied tweet: ${tweetId}`);
+              }
+            }).catch(err => {
+              console.error('[SM ReplyTracker] Failed to store replied tweet:', err);
+            });
+          } else {
+            if (REPLY_TRACKER_CONFIG.DEBUG) {
+              logDebug('Twitter:ReplyTracker:Submit', 'Could not extract tweet ID from dialog');
+            }
+          }
+        }, { passive: true });
+        
+        if (REPLY_TRACKER_CONFIG.DEBUG) {
+          logDebug('Twitter:ReplyTracker:Handlers', 'Attached handler to Reply submit button');
         }
-      }, { passive: true });
+      }
     });
-
-    if (REPLY_TRACKER_CONFIG.DEBUG && replyButtons.length > 0) {
-      logDebug('Twitter:ReplyTracker:Handlers', `Attached handlers to ${replyButtons.length} new reply buttons`);
-    }
   });
 
-  // Observe the entire document for new reply buttons
+  // Observe the entire document for new dialogs
   observer.observe(document.body, {
     childList: true,
     subtree: true
   });
 
-  logDebug('Twitter:ReplyTracker', 'Reply click handlers observer started');
+  logDebug('Twitter:ReplyTracker', 'Reply submit handlers observer started');
+}
+
+/**
+ * Check all visible tweets and mark replied ones on page load/scroll
+ */
+function checkVisibleTweets() {
+  const visibleTweets = document.querySelectorAll('[data-testid="tweet"]');
+  
+  visibleTweets.forEach(async (tweetElement) => {
+    const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
+    const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
+    
+    if (tweetId && repliedTweetsCache.has(tweetId)) {
+      const replyButton = tweetElement.querySelector('[data-testid="reply"]');
+      if (replyButton && !replyButton.querySelector('.sm-replied-checkmark')) {
+        markReplyIconAsFilled(replyButton);
+      }
+    }
+  });
+}
+
+/**
+ * Observe feed for new tweets and mark replied ones
+ */
+function observeFeedForRepliedTweets() {
+  const observer = new MutationObserver(() => {
+    checkVisibleTweets();
+  });
+  
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+  
+  // Initial check
+  checkVisibleTweets();
+  
+  logDebug('Twitter:ReplyTracker', 'Feed observer started');
 }
 
 // ==========================================
@@ -234,13 +319,18 @@ function attachReplyClickHandlers() {
 // ==========================================
 
 /**
- * Mark a reply icon as filled (purple) to indicate the user has replied
+ * Mark a reply button with a green checkmark to indicate the user has replied
  * @param {Element} replyButton - The reply button element
  */
 function markReplyIconAsFilled(replyButton) {
   if (!replyButton) return;
 
-  // Find the SVG icon inside the button
+  // Skip if already marked
+  if (replyButton.querySelector('.sm-replied-checkmark')) {
+    return;
+  }
+
+  // Find the reply SVG icon
   const replyIcon = replyButton.querySelector('svg');
   if (!replyIcon) {
     if (REPLY_TRACKER_CONFIG.DEBUG) {
@@ -249,24 +339,39 @@ function markReplyIconAsFilled(replyButton) {
     return;
   }
 
-  // Skip if already filled
-  if (replyIcon.classList.contains('sm-replied-filled')) {
-    return;
+  // Create checkmark overlay
+  const checkmarkContainer = document.createElement('div');
+  checkmarkContainer.className = 'sm-replied-checkmark';
+  checkmarkContainer.innerHTML = GREEN_CHECKMARK_SVG;
+  checkmarkContainer.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+
+  // Position the reply icon's parent relatively
+  const iconParent = replyIcon.parentElement;
+  if (iconParent) {
+    const parentStyle = window.getComputedStyle(iconParent);
+    if (parentStyle.position === 'static') {
+      iconParent.style.position = 'relative';
+    }
+    iconParent.appendChild(checkmarkContainer);
   }
 
-  // Add filled class
-  replyIcon.classList.add('sm-replied-filled');
-
-  // Inject CSS if not already present
-  injectRepliedStyles();
-
   if (REPLY_TRACKER_CONFIG.DEBUG) {
-    logDebug('Twitter:ReplyTracker:Visual', 'Marked reply icon as filled (purple)');
+    logDebug('Twitter:ReplyTracker:Visual', 'Added green checkmark overlay on reply icon');
   }
 }
 
 /**
- * Inject CSS styles for filled reply icons
+ * Inject CSS styles for replied tweets (minimal now, just for positioning)
  */
 function injectRepliedStyles() {
   // Check if styles already injected
@@ -277,21 +382,16 @@ function injectRepliedStyles() {
   const style = document.createElement('style');
   style.id = 'sm-replied-styles';
   style.textContent = `
-    /* Filled purple reply icon for tweets user has replied to */
-    .sm-replied-filled {
-      fill: ${REPLY_TRACKER_CONFIG.PURPLE_COLOR} !important;
-      opacity: 1 !important;
-    }
-
-    .sm-replied-filled path {
-      fill: ${REPLY_TRACKER_CONFIG.PURPLE_COLOR} !important;
+    /* Green checkmark indicator */
+    .sm-replied-checkmark {
+      z-index: 10;
     }
   `;
 
   document.head.appendChild(style);
 
   if (REPLY_TRACKER_CONFIG.DEBUG) {
-    logDebug('Twitter:ReplyTracker:CSS', 'Injected replied icon styles');
+    logDebug('Twitter:ReplyTracker:CSS', 'Injected replied styles');
   }
 }
 
@@ -334,22 +434,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
     // Reinitialize cache
     initializeCache().then(() => {
-      // Re-scan visible tweets and update UI
-      const visibleTweets = document.querySelectorAll('[data-testid="tweet"]');
-      visibleTweets.forEach(async (tweetElement) => {
-        const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
-        const tweetId = tweetLink?.href.split('/status/')[1]?.split('?')[0];
-
-        if (tweetId) {
-          const replied = await hasReplied(tweetId);
-          if (replied) {
-            const replyButton = tweetElement.querySelector('[data-testid="reply"]');
-            if (replyButton) {
-              markReplyIconAsFilled(replyButton);
-            }
-          }
-        }
-      });
+      // Re-check all visible tweets
+      checkVisibleTweets();
     });
   }
 });
@@ -367,8 +453,11 @@ async function initReplyTracker() {
   // Initialize cache from storage
   await initializeCache();
 
-  // Attach click handlers to reply buttons
-  attachReplyClickHandlers();
+  // Attach click handlers to Reply submit buttons in dialogs
+  attachReplySubmitHandlers();
+  
+  // Observe feed and mark replied tweets
+  observeFeedForRepliedTweets();
 
   logDebug('Twitter:ReplyTracker', '✓ Reply tracker initialized');
 }
