@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SocialMonkey for Twitter/X",
+  "name": "Twitter/X AI Reply & Tweet Ideas – Growth Assistant by SocialMonkey",
   "version": "1.0.0",
-  "description": "Schedule and automate Twitter/X posts with AI-powered content generation. Part of the SocialMonkey suite.",
+  "description": "AI-powered reply ideas, tweet inspiration, and smart engagement tools to grow faster on Twitter/X.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
