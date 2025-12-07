@@ -80,11 +80,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true; // Keep channel open for async response
 
-    case 'schedulePost':
-      handleSchedulePost(request.data, sender.tab);
-      sendResponse({ success: true });
-      break;
-
     case 'capturePostData':
       handleCapturePostData(request.data, sender.tab);
       sendResponse({ success: true });
@@ -201,43 +196,6 @@ async function handleFetchReplyStarters(data, accessToken) {
   }
 }
 
-// Handle post scheduling
-async function handleSchedulePost(postData, tab) {
-  console.log('Scheduling post:', postData);
-
-  // Save to local storage
-  const schedules = await chrome.storage.local.get(['scheduledPosts']) || { scheduledPosts: [] };
-  schedules.scheduledPosts = schedules.scheduledPosts || [];
-
-  schedules.scheduledPosts.push({
-    id: Date.now(),
-    platform: postData.platform,
-    content: postData.content,
-    scheduledTime: postData.scheduledTime,
-    url: tab.url,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  });
-
-  await chrome.storage.local.set(schedules);
-
-  // Set alarm for scheduled post
-  chrome.alarms.create(`post_${Date.now()}`, {
-    when: new Date(postData.scheduledTime).getTime()
-  });
-
-  // Notify user
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icons/icon128.png',
-    title: 'Post Scheduled',
-    message: `Your ${postData.platform} post has been scheduled for ${postData.scheduledTime}`
-  });
-
-  // Send to backend API
-  sendToBackend('/api/schedule', postData);
-}
-
 // Capture post data from the page
 async function handleCapturePostData(data, tab) {
   console.log('Capturing post data:', data);
@@ -319,42 +277,6 @@ async function trackEngagement(data) {
   sendToBackend('/api/track', data);
 }
 
-// Listen for alarms (scheduled posts)
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name.startsWith('post_')) {
-    console.log('Time to post!', alarm);
-    // TODO: Trigger scheduled post
-    executeScheduledPost(alarm);
-  }
-});
-
-// Execute a scheduled post
-async function executeScheduledPost(alarm) {
-  const postId = alarm.name.replace('post_', '');
-
-  // Get the scheduled post
-  const data = await chrome.storage.local.get(['scheduledPosts']);
-  const post = data.scheduledPosts?.find(p => p.id === parseInt(postId));
-
-  if (!post) return;
-
-  // Open the social media platform and inject the post
-  const tab = await chrome.tabs.create({ url: post.url });
-
-  // Wait for tab to load, then inject content
-  chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-    if (tabId === tab.id && info.status === 'complete') {
-      // Send message to content script to fill in the post
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'fillPost',
-        content: post.content
-      });
-
-      chrome.tabs.onUpdated.removeListener(listener);
-    }
-  });
-}
-
 // ==========================================
 // BACKEND API HELPER
 // ==========================================
@@ -385,40 +307,6 @@ async function sendToBackend(endpoint, data) {
     return null;
   }
 }
-
-// Context menu integration
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'socialmonkey-schedule',
-    title: 'Schedule with SocialMonkey',
-    contexts: ['selection']
-  });
-
-  chrome.contextMenus.create({
-    id: 'socialmonkey-analyze',
-    title: 'Analyze with SocialMonkey AI',
-    contexts: ['selection']
-  });
-});
-
-// Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'socialmonkey-schedule') {
-    // Send selected text to content script
-    chrome.tabs.sendMessage(tab.id, {
-      action: 'scheduleSelected',
-      text: info.selectionText
-    });
-  } else if (info.menuItemId === 'socialmonkey-analyze') {
-    // Analyze selected text
-    analyzePostContent({ content: info.selectionText }).then(analysis => {
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'showAnalysis',
-        analysis: analysis
-      });
-    });
-  }
-});
 
 // ==========================================
 // OAUTH CALLBACK HANDLER
