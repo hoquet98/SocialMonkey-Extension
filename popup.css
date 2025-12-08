@@ -400,29 +400,32 @@ button:active {
 .high-impact-badge-demo {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: #3b82f6;
-  color: white;
-  padding: 4px 10px;
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25);
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background-color: transparent;
+  border: 1px solid rgba(29, 155, 240, 0.3);
   flex-shrink: 0;
-  height: 24px;
-  line-height: 1;
+  transition: all 0.2s;
+}
+
+.high-impact-badge-demo:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+  border-color: rgba(29, 155, 240, 0.5);
 }
 
 .high-impact-badge-demo .badge-icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   display: inline-block;
   flex-shrink: 0;
 }
 
 .high-impact-badge-demo .badge-text {
-  font-size: 12px;
+  color: rgb(29, 155, 240);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
   white-space: nowrap;
 }
 

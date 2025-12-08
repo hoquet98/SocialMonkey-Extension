@@ -875,32 +875,30 @@ function markTweetAsHighImpact(tweetElement, tweetData, scoreResult) {
     return;
   }
 
-  // Create badge container (inline with stats) - fixed size
+  // Create badge container (inline with stats) - styled like Reply Starter button
   const badge = document.createElement('div');
   badge.className = 'sm-high-impact-badge';
   badge.style.cssText = `
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 4px !important;
-    background: #3b82f6 !important;
-    color: white !important;
-    padding: 4px 10px !important;
-    border-radius: 16px !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
+    gap: 6px !important;
+    background: transparent !important;
+    color: rgb(29, 155, 240) !important;
+    padding: 6px 12px !important;
+    border-radius: 9999px !important;
+    border: 1px solid rgba(29, 155, 240, 0.3) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
     margin-left: 12px !important;
     cursor: help !important;
     position: relative !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-    transition: transform 0.2s !important;
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25) !important;
+    transition: all 0.2s !important;
     flex-shrink: 0 !important;
     flex-grow: 0 !important;
-    max-width: 150px !important;
-    min-width: auto !important;
-    height: 24px !important;
-    line-height: 1 !important;
+    height: auto !important;
+    line-height: 20px !important;
     vertical-align: middle !important;
     align-self: center !important;
   `;
@@ -923,15 +921,18 @@ function markTweetAsHighImpact(tweetElement, tweetData, scoreResult) {
   }
 
   monkeyIcon.style.cssText = `
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     display: inline-block;
     flex-shrink: 0;
   `;
 
   const scoreText = document.createElement('span');
   scoreText.style.cssText = `
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    color: rgb(29, 155, 240);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -943,11 +944,15 @@ function markTweetAsHighImpact(tweetElement, tweetData, scoreResult) {
 
   // Add hover effect
   badge.addEventListener('mouseenter', () => {
-    badge.style.transform = 'scale(1.05)';
+    badge.style.backgroundColor = 'rgba(29, 155, 240, 0.1)';
+    badge.style.borderColor = 'rgba(29, 155, 240, 0.5)';
+    scoreText.style.color = 'rgb(26, 140, 216)';
   }, { passive: true });
 
   badge.addEventListener('mouseleave', () => {
-    badge.style.transform = 'scale(1)';
+    badge.style.backgroundColor = 'transparent';
+    badge.style.borderColor = 'rgba(29, 155, 240, 0.3)';
+    scoreText.style.color = 'rgb(29, 155, 240)';
   }, { passive: true });
 
   // Create tooltip with explanation
