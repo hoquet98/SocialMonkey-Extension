@@ -57,7 +57,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
 
     // Open welcome page
-    chrome.tabs.create({ url: 'https://socialmonkey.com/welcome' });
+    chrome.tabs.create({ url: 'https://extensions.socialmonkey.ai' });
   }
 });
 

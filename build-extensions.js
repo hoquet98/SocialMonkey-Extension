@@ -83,6 +83,11 @@ function buildPlatform(platform) {
     const src = path.join(__dirname, file);
     const dest = path.join(platformBuildDir, file);
 
+    // Skip icons directory - we'll handle platform-specific icons separately
+    if (file === 'icons') {
+      return;
+    }
+
     if (fs.existsSync(src)) {
       if (fs.lstatSync(src).isDirectory()) {
         copyDir(src, dest);
@@ -91,6 +96,24 @@ function buildPlatform(platform) {
       }
     }
   });
+
+  // Copy platform-specific icons
+  const platformIconsDir = path.join(__dirname, 'icons', platform);
+  const destIconsDir = path.join(platformBuildDir, 'icons');
+  if (fs.existsSync(platformIconsDir)) {
+    if (!fs.existsSync(destIconsDir)) {
+      fs.mkdirSync(destIconsDir, { recursive: true });
+    }
+    // Copy platform icons
+    copyDir(platformIconsDir, destIconsDir);
+    // Copy shared logo.svg
+    const logoSrc = path.join(__dirname, 'icons', 'logo.svg');
+    if (fs.existsSync(logoSrc)) {
+      fs.copyFileSync(logoSrc, path.join(destIconsDir, 'logo.svg'));
+    }
+  } else {
+    console.warn(`⚠️  No icons found for ${platform} at ${platformIconsDir}`);
+  }
 
   // Copy manifest (platform-specific or master)
   const manifestSrc = platform === 'master'
