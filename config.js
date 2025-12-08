@@ -33,7 +33,7 @@ const SOCIALMONKEY_CONFIG = {
     REPLY_STARTER_BUTTON_TEXT: 'Reply Starter',
     POPUP_FEATURES: {
       HIGH_IMPACT: 'High-Impact tweet detection',
-      BRAND_RELEVANCE: 'Reply, Repost, Like on Brand Relevance',
+      BRAND_RELEVANCE: 'Highlighted brand-relevant actions',
       REPLY_STARTERS: 'AI-powered reply starters',
       FOLLOWER_GLOW: 'Identify recent followers',
       INSPIRATIONS: 'Save inspirational posts',
