@@ -2,10 +2,10 @@
  * SocialMonkey Twitter Automation (EXPERIMENTAL)
  * 
  * Automated engagement bot that:
- * - Auto-likes posts marked for liking
- * - Auto-replies to posts marked for replying (using AI reply starters)
- * - Scrolls feed automatically
- * - Random delays between actions (1-2 minutes)
+ * - Scans posts on page for backend evaluations
+ * - Processes posts sequentially (no simultaneous actions)
+ * - Performs actions: like, reply (in order)
+ * - Waits 1-2 minutes between each POST (not each action)
  * - Toggle on/off with Ctrl+Alt+M
  */
 
@@ -15,6 +15,8 @@ logDebug('Twitter:Automation', '✓ Automation module loading...');
 let isAutomationRunning = false;
 let automationTimeout = null;
 let lastActionTime = 0;
+let isProcessingPost = false; // Prevent simultaneous actions
+let processedPostIds = new Set(); // Track which posts we've already processed
 
 // Configuration - pull from SOCIALMONKEY_CONFIG
 const AUTOMATION_CONFIG = {
@@ -153,70 +155,82 @@ function updateTimerDisplay(nextActionTime) {
 }
 
 /**
- * Find tweets marked for liking (has Brand Relevance indicators)
+ * Get a unique ID for a tweet element
  */
-function findTweetsToLike() {
-  // Look for tweets with like icons highlighted by backend
-  const tweets = [];
+function getTweetId(tweetElement) {
+  // Try to get tweet ID from the element's links
+  const links = tweetElement.querySelectorAll('a[href*="/status/"]');
+  for (const link of links) {
+    const match = link.href.match(/\/status\/(\d+)/);
+    if (match) return match[1];
+  }
+  // Fallback: use element's position in DOM
+  const allTweets = document.querySelectorAll('[data-testid="tweet"]');
+  return Array.from(allTweets).indexOf(tweetElement).toString();
+}
+
+/**
+ * Scan all visible posts and collect those that need actions
+ * Returns array of posts with their required actions
+ */
+function scanPostsForActions() {
+  const postsToProcess = [];
   const allTweets = document.querySelectorAll('[data-testid="tweet"]');
   
+  logDebug('Twitter:Automation', `📊 Scanning ${allTweets.length} visible posts...`);
+  
   allTweets.forEach(tweet => {
-    // Check if already processed
-    if (tweet.hasAttribute('data-sm-auto-liked')) return;
+    const tweetId = getTweetId(tweet);
     
-    // Check if tweet has the sm-recommend-like class (added by backend evaluation)
+    // Skip if already processed
+    if (processedPostIds.has(tweetId)) {
+      return;
+    }
+    
+    const actions = {
+      tweetId,
+      tweet,
+      shouldLike: false,
+      shouldReply: false
+    };
+    
+    // Check if backend recommended a like (icon has sm-recommend-like class)
     const hasRecommendedLike = tweet.querySelector('.sm-recommend-like');
-    if (!hasRecommendedLike) return;
-    
-    // Find like button
-    const likeButton = tweet.querySelector('[data-testid="like"]');
-    if (likeButton) {
-      tweets.push({ tweet, likeButton, action: 'like' });
+    if (hasRecommendedLike) {
+      actions.shouldLike = true;
     }
-  });
-  
-  return tweets;
-}
-
-/**
- * Find tweets marked for replying (has High-Impact or reply indicators)
- */
-function findTweetsToReply() {
-  const tweets = [];
-  const allTweets = document.querySelectorAll('[data-testid="tweet"]');
-  
-  allTweets.forEach(tweet => {
-    // Check if already processed
-    if (tweet.hasAttribute('data-sm-auto-replied')) return;
     
-    // Check if tweet has High-Impact badge
+    // Check if backend marked as high-impact (should reply)
     const hasHighImpact = tweet.querySelector('.sm-high-impact-badge');
-    if (!hasHighImpact) return;
+    if (hasHighImpact) {
+      actions.shouldReply = true;
+    }
     
-    // Find reply button
-    const replyButton = tweet.querySelector('[data-testid="reply"]');
-    if (replyButton) {
-      tweets.push({ tweet, replyButton, action: 'reply' });
+    // Only add to list if there's at least one action to perform
+    if (actions.shouldLike || actions.shouldReply) {
+      postsToProcess.push(actions);
     }
   });
   
-  return tweets;
+  logDebug('Twitter:Automation', `✅ Found ${postsToProcess.length} posts with actions`);
+  return postsToProcess;
 }
 
 /**
- * Click like button on a tweet
+ * Perform like action on a tweet
  */
-async function performLike(tweetData) {
+async function performLike(tweet) {
   try {
-    logDebug('Twitter:Automation', '👍 Auto-liking tweet...');
+    logDebug('Twitter:Automation', '👍 Performing like...');
     
-    const { tweet, likeButton } = tweetData;
+    const likeButton = tweet.querySelector('[data-testid="like"]');
+    if (!likeButton) {
+      logDebug('Twitter:Automation', '⚠️ Like button not found');
+      return false;
+    }
     
-    // Click like button
     likeButton.click();
-    
-    // Mark as processed
-    tweet.setAttribute('data-sm-auto-liked', 'true');
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     logDebug('Twitter:Automation', '✅ Like completed');
     return true;
@@ -227,76 +241,85 @@ async function performLike(tweetData) {
 }
 
 /**
- * Click reply button and wait for reply dialog, then select AI reply
+ * Perform reply action on a tweet
+ * Opens dialog, waits for Reply Starter, selects reply, sends
  */
-async function performReply(tweetData) {
+async function performReply(tweet) {
   try {
-    logDebug('Twitter:Automation', '💬 Auto-replying to tweet...');
+    logDebug('Twitter:Automation', '💬 Performing reply...');
     
-    const { tweet, replyButton } = tweetData;
+    // Step 1: Click reply button to open dialog
+    const replyButton = tweet.querySelector('[data-testid="reply"]');
+    if (!replyButton) {
+      logDebug('Twitter:Automation', '⚠️ Reply button not found');
+      return false;
+    }
     
-    // Click reply button to open dialog
     replyButton.click();
-    
-    // Wait for reply dialog to appear
+    logDebug('Twitter:Automation', '⏳ Waiting for reply dialog...');
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Find Reply Starter button
+    // Step 2: Find and click Reply Starter button
     const replyStarterBtn = document.querySelector('.socialmonkey-reply-starters-icon button');
     if (!replyStarterBtn) {
-      logDebug('Twitter:Automation', '⚠️ Reply Starter button not found');
+      logDebug('Twitter:Automation', '⚠️ Reply Starter button not found, closing dialog');
+      closeReplyDialog();
       return false;
     }
     
-    // Click Reply Starter button
     replyStarterBtn.click();
-    
-    // Wait for AI replies to load from backend (10 seconds)
+    logDebug('Twitter:Automation', '⏳ Waiting for AI replies to load (10 seconds)...');
     await new Promise(resolve => setTimeout(resolve, 10000));
     
-    // Find first category's first 3 replies
+    // Step 3: Find and select a reply option
     const replyOptions = document.querySelectorAll('.sm-reply-option');
     if (replyOptions.length === 0) {
-      logDebug('Twitter:Automation', '⚠️ No reply options found');
+      logDebug('Twitter:Automation', '⚠️ No reply options found, closing dialog');
+      closeReplyDialog();
       return false;
     }
     
-    // Randomly select one of the top 3 replies
+    // Select random reply from top 3
     const maxIndex = Math.min(2, replyOptions.length - 1);
     const randomIndex = Math.floor(Math.random() * (maxIndex + 1));
     const selectedReply = replyOptions[randomIndex];
     
-    // Click the selected reply
     selectedReply.click();
+    logDebug('Twitter:Automation', '⏳ Reply selected, waiting for insertion...');
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Wait a bit for reply to be inserted
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Find and click the Tweet button to send
+    // Step 4: Find and click Tweet button to send
     const tweetButton = document.querySelector('[data-testid="tweetButton"]');
-    if (tweetButton && !tweetButton.disabled) {
-      tweetButton.click();
-      logDebug('Twitter:Automation', '✅ Reply sent');
-      
-      // Wait for reply to be sent and dialog to close
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Try to close the dialog if still open
-      const closeButton = document.querySelector('[data-testid="app-bar-close"]');
-      if (closeButton) {
-        closeButton.click();
-      }
-      
-      // Mark as processed
-      tweet.setAttribute('data-sm-auto-replied', 'true');
-      return true;
-    } else {
-      logDebug('Twitter:Automation', '⚠️ Tweet button not found or disabled');
+    if (!tweetButton || tweetButton.disabled) {
+      logDebug('Twitter:Automation', '⚠️ Tweet button not found or disabled, closing dialog');
+      closeReplyDialog();
       return false;
     }
+    
+    tweetButton.click();
+    logDebug('Twitter:Automation', '⏳ Sending reply...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Step 5: Close dialog if still open
+    closeReplyDialog();
+    
+    logDebug('Twitter:Automation', '✅ Reply completed');
+    return true;
   } catch (error) {
     console.error('[SM Automation] Reply failed:', error);
+    closeReplyDialog();
     return false;
+  }
+}
+
+/**
+ * Close the reply dialog
+ */
+function closeReplyDialog() {
+  const closeButton = document.querySelector('[data-testid="app-bar-close"]');
+  if (closeButton) {
+    closeButton.click();
+    logDebug('Twitter:Automation', '🚪 Reply dialog closed');
   }
 }
 
@@ -312,61 +335,88 @@ function scrollFeed() {
 }
 
 /**
- * Main automation loop
+ * Process a single post with all its required actions
+ * Performs actions sequentially: like first, then reply
+ */
+async function processPost(postData) {
+  if (isProcessingPost) {
+    logDebug('Twitter:Automation', '⚠️ Already processing a post, skipping');
+    return false;
+  }
+  
+  isProcessingPost = true;
+  const { tweetId, tweet, shouldLike, shouldReply } = postData;
+  
+  try {
+    logDebug('Twitter:Automation', `📝 Processing post ${tweetId} - Like: ${shouldLike}, Reply: ${shouldReply}`);
+    
+    // Action 1: Like (if needed)
+    if (shouldLike) {
+      const likeSuccess = await performLike(tweet);
+      if (!likeSuccess) {
+        logDebug('Twitter:Automation', '⚠️ Like failed, but continuing...');
+      }
+    }
+    
+    // Action 2: Reply (if needed)
+    if (shouldReply) {
+      const replySuccess = await performReply(tweet);
+      if (!replySuccess) {
+        logDebug('Twitter:Automation', '⚠️ Reply failed');
+      }
+    }
+    
+    // Mark this post as processed
+    processedPostIds.add(tweetId);
+    logDebug('Twitter:Automation', `✅ Post ${tweetId} processing complete`);
+    
+    return true;
+  } catch (error) {
+    console.error('[SM Automation] Post processing error:', error);
+    return false;
+  } finally {
+    isProcessingPost = false;
+  }
+}
+
+/**
+ * Main automation loop - simplified sequential processing
  */
 async function runAutomationCycle() {
   if (!isAutomationRunning) return;
+  if (isProcessingPost) {
+    logDebug('Twitter:Automation', '⚠️ Still processing previous post, waiting...');
+    automationTimeout = setTimeout(() => runAutomationCycle(), 5000);
+    return;
+  }
   
   try {
     logDebug('Twitter:Automation', '🔄 Running automation cycle...');
     
-    // Find actions to perform
-    const tweetsToLike = findTweetsToLike();
-    const tweetsToReply = findTweetsToReply();
+    // Scan all visible posts
+    const postsToProcess = scanPostsForActions();
     
-    logDebug('Twitter:Automation', `Found: ${tweetsToLike.length} to like, ${tweetsToReply.length} to reply`);
-    
-    let actionPerformed = false;
-    
-    // Priority: Reply first (more valuable), then like the same tweet if recommended
-    if (tweetsToReply.length > 0) {
-      const randomTweet = tweetsToReply[Math.floor(Math.random() * tweetsToReply.length)];
-      actionPerformed = await performReply(randomTweet);
-      
-      // After replying, check if we should also like the same tweet
-      if (actionPerformed) {
-        const shouldAlsoLike = randomTweet.tweet.querySelector('.sm-recommend-like');
-        const notYetLiked = !randomTweet.tweet.hasAttribute('data-sm-auto-liked');
-        
-        if (shouldAlsoLike && notYetLiked) {
-          logDebug('Twitter:Automation', '👍 Also liking this tweet...');
-          const likeButton = randomTweet.tweet.querySelector('[data-testid="like"]');
-          if (likeButton) {
-            await performLike({ tweet: randomTweet.tweet, likeButton });
-          }
-        }
-      }
-    } else if (tweetsToLike.length > 0) {
-      const randomTweet = tweetsToLike[Math.floor(Math.random() * tweetsToLike.length)];
-      actionPerformed = await performLike(randomTweet);
-    }
-    
-    // If no actions performed, scroll to find more content
-    if (!actionPerformed) {
+    if (postsToProcess.length === 0) {
+      logDebug('Twitter:Automation', '📜 No posts to process, scrolling...');
       scrollFeed();
-      // Schedule next cycle sooner (3 seconds)
+      
+      // Try again after scroll delay
       if (isAutomationRunning) {
         automationTimeout = setTimeout(() => runAutomationCycle(), AUTOMATION_CONFIG.SCROLL_DELAY_MS);
       }
       return;
     }
     
-    // Schedule next action with random delay
+    // Process the FIRST post in the list
+    const firstPost = postsToProcess[0];
+    await processPost(firstPost);
+    
+    // Schedule next post processing with random delay (1-2 minutes)
     if (isAutomationRunning) {
       const delay = getRandomDelay();
       const nextActionTime = Date.now() + delay;
       
-      logDebug('Twitter:Automation', `⏰ Next action in ${formatTime(delay)}`);
+      logDebug('Twitter:Automation', `⏰ Next post in ${formatTime(delay)}`);
       updateTimerDisplay(nextActionTime);
       
       lastActionTime = Date.now();
@@ -421,6 +471,7 @@ function stopAutomation() {
   }
   
   isAutomationRunning = false;
+  isProcessingPost = false;
   logDebug('Twitter:Automation', '🛑 Stopping automation...');
   
   // Clear timeout
@@ -428,6 +479,9 @@ function stopAutomation() {
     clearTimeout(automationTimeout);
     automationTimeout = null;
   }
+  
+  // Clear processed posts tracking
+  processedPostIds.clear();
   
   // Remove indicator
   removeAutomationIndicator();
