@@ -391,6 +391,9 @@ async function processPost(postData) {
     processedPostIds.add(tweetId);
     logDebug('Twitter:Automation', `✅ Post ${tweetId} processing complete`);
     
+    // Scroll after processing to load new content for evaluation
+    scrollFeed();
+    
     return true;
   } catch (error) {
     console.error('[SM Automation] Post processing error:', error);
