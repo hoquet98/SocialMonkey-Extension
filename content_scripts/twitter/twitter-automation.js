@@ -198,17 +198,20 @@ function scanPostsForActions() {
     const hasRecommendedLike = tweet.querySelector('.sm-recommend-like');
     if (hasRecommendedLike) {
       actions.shouldLike = true;
+      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Found .sm-recommend-like - shouldLike = true`);
     }
     
     // Check if backend marked as high-impact (should reply)
     const hasHighImpact = tweet.querySelector('.sm-high-impact-badge');
     if (hasHighImpact) {
       actions.shouldReply = true;
+      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Found .sm-high-impact-badge - shouldReply = true`);
     }
     
     // Only add to list if there's at least one action to perform
     if (actions.shouldLike || actions.shouldReply) {
       postsToProcess.push(actions);
+      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Added to process list (like: ${actions.shouldLike}, reply: ${actions.shouldReply})`);
     }
   });
   
