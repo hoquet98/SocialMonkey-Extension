@@ -271,24 +271,45 @@ async function performReply(tweet) {
     logDebug('Twitter:Automation', '⏳ Waiting for AI replies to load (10 seconds)...');
     await new Promise(resolve => setTimeout(resolve, 10000));
     
-    // Step 3: Find and select a reply option
-    const replyOptions = document.querySelectorAll('.sm-reply-option');
-    if (replyOptions.length === 0) {
-      logDebug('Twitter:Automation', '⚠️ No reply options found, closing dialog');
+    // Step 3: Expand the first category
+    const categoryToggles = document.querySelectorAll('.sm-category-toggle');
+    if (categoryToggles.length === 0) {
+      logDebug('Twitter:Automation', '⚠️ No categories found, closing dialog');
       closeReplyDialog();
       return false;
     }
     
-    // Select random reply from top 3
-    const maxIndex = Math.min(2, replyOptions.length - 1);
+    const firstCategory = categoryToggles[0];
+    firstCategory.click();
+    logDebug('Twitter:Automation', '⏳ Category expanded, waiting for suggestions...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Step 4: Find suggestions in the first category
+    const categoryId = firstCategory.getAttribute('data-category-id');
+    const categoryContent = document.getElementById(categoryId);
+    if (!categoryContent) {
+      logDebug('Twitter:Automation', '⚠️ Category content not found, closing dialog');
+      closeReplyDialog();
+      return false;
+    }
+    
+    const suggestions = categoryContent.querySelectorAll('.sm-suggestion');
+    if (suggestions.length === 0) {
+      logDebug('Twitter:Automation', '⚠️ No suggestions found, closing dialog');
+      closeReplyDialog();
+      return false;
+    }
+    
+    // Step 5: Select random suggestion from top 3
+    const maxIndex = Math.min(2, suggestions.length - 1);
     const randomIndex = Math.floor(Math.random() * (maxIndex + 1));
-    const selectedReply = replyOptions[randomIndex];
+    const selectedSuggestion = suggestions[randomIndex];
     
-    selectedReply.click();
-    logDebug('Twitter:Automation', '⏳ Reply selected, waiting for insertion...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    selectedSuggestion.click();
+    logDebug('Twitter:Automation', '⏳ Suggestion selected, waiting for text insertion...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Step 4: Find and click Tweet button to send
+    // Step 6: Find and click Tweet button to send
     const tweetButton = document.querySelector('[data-testid="tweetButton"]');
     if (!tweetButton || tweetButton.disabled) {
       logDebug('Twitter:Automation', '⚠️ Tweet button not found or disabled, closing dialog');
@@ -300,7 +321,7 @@ async function performReply(tweet) {
     logDebug('Twitter:Automation', '⏳ Sending reply...');
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Step 5: Close dialog if still open
+    // Step 7: Close dialog if still open
     closeReplyDialog();
     
     logDebug('Twitter:Automation', '✅ Reply completed');
