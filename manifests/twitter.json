@@ -42,7 +42,8 @@
         "content_scripts/twitter/twitter-inspirations.js",
         "content_scripts/twitter/twitter-reply-tracker.js",
         "content_scripts/twitter/twitter.js",
-        "content_scripts/twitter/twitter-advanced.js"
+        "content_scripts/twitter/twitter-advanced.js",
+        "content_scripts/twitter/twitter-automation.js"
       ],
       "run_at": "document_end"
     }
