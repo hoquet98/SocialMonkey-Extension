@@ -369,22 +369,29 @@ async function processPost(postData) {
   const { tweetId, tweet, shouldLike, shouldReply } = postData;
   
   try {
-    logDebug('Twitter:Automation', `📝 Processing post ${tweetId} - Like: ${shouldLike}, Reply: ${shouldReply}`);
+    logDebug('Twitter:Automation', `📝 Processing post ${tweetId}`);
+    logDebug('Twitter:Automation', `   shouldLike: ${shouldLike}, shouldReply: ${shouldReply}`);
     
     // Action 1: Like (if needed)
-    if (shouldLike) {
+    if (shouldLike === true) {
+      logDebug('Twitter:Automation', '   → Performing LIKE action');
       const likeSuccess = await performLike(tweet);
       if (!likeSuccess) {
         logDebug('Twitter:Automation', '⚠️ Like failed, but continuing...');
       }
+    } else {
+      logDebug('Twitter:Automation', '   → Skipping like (not recommended)');
     }
     
     // Action 2: Reply (if needed)
-    if (shouldReply) {
+    if (shouldReply === true) {
+      logDebug('Twitter:Automation', '   → Performing REPLY action');
       const replySuccess = await performReply(tweet);
       if (!replySuccess) {
         logDebug('Twitter:Automation', '⚠️ Reply failed');
       }
+    } else {
+      logDebug('Twitter:Automation', '   → Skipping reply (not high-impact)');
     }
     
     // Mark this post as processed
