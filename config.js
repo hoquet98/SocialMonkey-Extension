@@ -28,6 +28,13 @@ const SOCIALMONKEY_CONFIG = {
     CACHE_EXPIRY: 300000, // 5 minutes in milliseconds
   },
 
+  // Automation Settings (Experimental)
+  AUTOMATION: {
+    DELAY_RANGE_START_SECONDS: 60,  // 1 minute
+    DELAY_RANGE_END_SECONDS: 120,   // 2 minutes
+    SCROLL_DELAY_SECONDS: 3,        // 3 seconds between scrolls
+  },
+
   // UI Text Labels
   UI: {
     REPLY_STARTER_BUTTON_TEXT: 'Reply Starter',

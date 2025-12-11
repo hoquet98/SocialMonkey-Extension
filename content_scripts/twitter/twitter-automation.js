@@ -16,11 +16,11 @@ let isAutomationRunning = false;
 let automationTimeout = null;
 let lastActionTime = 0;
 
-// Configuration
+// Configuration - pull from SOCIALMONKEY_CONFIG
 const AUTOMATION_CONFIG = {
-  MIN_DELAY_MS: 60000,  // 1 minute
-  MAX_DELAY_MS: 120000, // 2 minutes
-  SCROLL_DELAY_MS: 3000, // 3 seconds between scrolls
+  MIN_DELAY_MS: (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.DELAY_RANGE_START_SECONDS || 60) * 1000,
+  MAX_DELAY_MS: (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.DELAY_RANGE_END_SECONDS || 120) * 1000,
+  SCROLL_DELAY_MS: (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.SCROLL_DELAY_SECONDS || 3) * 1000,
   INDICATOR_ID: 'sm-automation-indicator'
 };
 
