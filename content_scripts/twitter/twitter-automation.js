@@ -29,8 +29,8 @@ function logAutomation(message, data = {}) {
   };
   automationLog.push(entry);
   
-  // Keep only last 100 entries
-  if (automationLog.length > 100) {
+  // Keep only last 200 entries
+  if (automationLog.length > 200) {
     automationLog.shift();
   }
   
@@ -44,6 +44,26 @@ function logAutomation(message, data = {}) {
   // Also log to console
   logDebug('Twitter:Automation', message, data);
 }
+
+// Download logs as a file
+function downloadAutomationLogs() {
+  const logs = JSON.parse(localStorage.getItem('sm_automation_log') || '[]');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `sm-automation-log-${timestamp}.json`;
+  
+  const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  console.log(`Automation logs downloaded as ${filename}`);
+}
+
+// Make download function globally accessible
+window.downloadAutomationLogs = downloadAutomationLogs;
 
 // Configuration - pull from SOCIALMONKEY_CONFIG
 const AUTOMATION_CONFIG = {
