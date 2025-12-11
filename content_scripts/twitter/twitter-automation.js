@@ -18,6 +18,33 @@ let lastActionTime = 0;
 let isProcessingPost = false; // Prevent simultaneous actions
 let processedPostIds = new Set(); // Track which posts we've already processed
 
+// Detailed logging system
+const automationLog = [];
+function logAutomation(message, data = {}) {
+  const timestamp = new Date().toISOString();
+  const entry = {
+    timestamp,
+    message,
+    ...data
+  };
+  automationLog.push(entry);
+  
+  // Keep only last 100 entries
+  if (automationLog.length > 100) {
+    automationLog.shift();
+  }
+  
+  // Save to localStorage
+  try {
+    localStorage.setItem('sm_automation_log', JSON.stringify(automationLog));
+  } catch (e) {
+    console.error('Failed to save automation log:', e);
+  }
+  
+  // Also log to console
+  logDebug('Twitter:Automation', message, data);
+}
+
 // Configuration - pull from SOCIALMONKEY_CONFIG
 const AUTOMATION_CONFIG = {
   MIN_DELAY_MS: (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.DELAY_RANGE_START_SECONDS || 60) * 1000,
@@ -166,7 +193,30 @@ function getTweetId(tweetElement) {
   }
   // Fallback: use element's position in DOM
   const allTweets = document.querySelectorAll('[data-testid="tweet"]');
-  return Array.from(allTweets).indexOf(tweetElement).toString();
+  return 'pos-' + Array.from(allTweets).indexOf(tweetElement).toString();
+}
+
+/**
+ * Get tweet author name for logging
+ */
+function getTweetAuthor(tweetElement) {
+  const authorLink = tweetElement.querySelector('[data-testid="User-Name"] a');
+  if (authorLink) {
+    const match = authorLink.href.match(/twitter\.com\/([^/]+)|x\.com\/([^/]+)/);
+    return match ? (match[1] || match[2]) : 'unknown';
+  }
+  return 'unknown';
+}
+
+/**
+ * Get tweet text snippet for logging
+ */
+function getTweetText(tweetElement) {
+  const tweetText = tweetElement.querySelector('[data-testid="tweetText"]');
+  if (tweetText) {
+    return tweetText.textContent.substring(0, 80) + '...';
+  }
+  return 'no text';
 }
 
 /**
@@ -177,19 +227,24 @@ function scanPostsForActions() {
   const postsToProcess = [];
   const allTweets = document.querySelectorAll('[data-testid="tweet"]');
   
-  logDebug('Twitter:Automation', `📊 Scanning ${allTweets.length} visible posts...`);
+  logAutomation(`SCAN: Found ${allTweets.length} visible tweets on page`);
   
-  allTweets.forEach(tweet => {
+  allTweets.forEach((tweet, index) => {
     const tweetId = getTweetId(tweet);
+    const author = getTweetAuthor(tweet);
+    const text = getTweetText(tweet);
     
     // Skip if already processed
     if (processedPostIds.has(tweetId)) {
+      logAutomation(`SCAN: Skipping tweet ${index} - already processed`, { tweetId, author });
       return;
     }
     
     const actions = {
       tweetId,
       tweet,
+      author,
+      text,
       shouldLike: false,
       shouldReply: false
     };
@@ -198,47 +253,55 @@ function scanPostsForActions() {
     const hasRecommendedLike = tweet.querySelector('.sm-recommend-like');
     if (hasRecommendedLike) {
       actions.shouldLike = true;
-      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Found .sm-recommend-like - shouldLike = true`);
+      logAutomation(`SCAN: Tweet ${index} (@${author}) - LIKE RECOMMENDED`, { tweetId, text });
     }
     
     // Check if backend marked as high-impact (should reply)
     const hasHighImpact = tweet.querySelector('.sm-high-impact-badge');
     if (hasHighImpact) {
+      const badge = hasHighImpact.textContent;
       actions.shouldReply = true;
-      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Found .sm-high-impact-badge - shouldReply = true`);
+      logAutomation(`SCAN: Tweet ${index} (@${author}) - REPLY RECOMMENDED (${badge})`, { tweetId, text });
     }
     
     // Only add to list if there's at least one action to perform
     if (actions.shouldLike || actions.shouldReply) {
       postsToProcess.push(actions);
-      logDebug('Twitter:Automation', `   Tweet ${tweetId}: Added to process list (like: ${actions.shouldLike}, reply: ${actions.shouldReply})`);
+      logAutomation(`SCAN: Tweet ${index} (@${author}) - ADDED TO QUEUE`, { 
+        tweetId, 
+        shouldLike: actions.shouldLike, 
+        shouldReply: actions.shouldReply,
+        text 
+      });
+    } else {
+      logAutomation(`SCAN: Tweet ${index} (@${author}) - NO ACTIONS NEEDED`, { tweetId });
     }
   });
   
-  logDebug('Twitter:Automation', `✅ Found ${postsToProcess.length} posts with actions`);
+  logAutomation(`SCAN COMPLETE: ${postsToProcess.length} posts queued for processing`);
   return postsToProcess;
 }
 
 /**
  * Perform like action on a tweet
  */
-async function performLike(tweet) {
+async function performLike(tweet, tweetId, author) {
   try {
-    logDebug('Twitter:Automation', '👍 Performing like...');
+    logAutomation(`ACTION: Starting LIKE on @${author}`, { tweetId });
     
     const likeButton = tweet.querySelector('[data-testid="like"]');
     if (!likeButton) {
-      logDebug('Twitter:Automation', '⚠️ Like button not found');
+      logAutomation(`ACTION: LIKE FAILED - button not found on @${author}`, { tweetId });
       return false;
     }
     
     likeButton.click();
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    logDebug('Twitter:Automation', '✅ Like completed');
+    logAutomation(`ACTION: LIKE COMPLETE on @${author}`, { tweetId });
     return true;
   } catch (error) {
-    console.error('[SM Automation] Like failed:', error);
+    logAutomation(`ACTION: LIKE ERROR on @${author}`, { tweetId, error: error.message });
     return false;
   }
 }
@@ -247,59 +310,60 @@ async function performLike(tweet) {
  * Perform reply action on a tweet
  * Opens dialog, waits for Reply Starter, selects reply, sends
  */
-async function performReply(tweet) {
+async function performReply(tweet, tweetId, author) {
   try {
-    logDebug('Twitter:Automation', '💬 Performing reply...');
+    logAutomation(`ACTION: Starting REPLY on @${author}`, { tweetId });
     
     // Step 1: Click reply button to open dialog
     const replyButton = tweet.querySelector('[data-testid="reply"]');
     if (!replyButton) {
-      logDebug('Twitter:Automation', '⚠️ Reply button not found');
+      logAutomation(`ACTION: REPLY FAILED - reply button not found on @${author}`, { tweetId });
       return false;
     }
     
     replyButton.click();
-    logDebug('Twitter:Automation', '⏳ Waiting for reply dialog...');
+    logAutomation(`ACTION: Reply dialog opened for @${author}`, { tweetId });
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Step 2: Find and click Reply Starter button
     const replyStarterBtn = document.querySelector('.socialmonkey-reply-starters-icon button');
     if (!replyStarterBtn) {
-      logDebug('Twitter:Automation', '⚠️ Reply Starter button not found, closing dialog');
+      logAutomation(`ACTION: REPLY FAILED - Reply Starter button not found for @${author}`, { tweetId });
       closeReplyDialog();
       return false;
     }
     
     replyStarterBtn.click();
     const replyWaitTime = (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.REPLY_STARTER_WAIT_SECONDS || 15) * 1000;
-    logDebug('Twitter:Automation', `⏳ Waiting for AI replies to load (${replyWaitTime/1000} seconds)...`);
+    logAutomation(`ACTION: Reply Starter clicked for @${author}, waiting ${replyWaitTime/1000}s`, { tweetId });
     await new Promise(resolve => setTimeout(resolve, replyWaitTime));
     
     // Step 3: Expand the first category
     const categoryToggles = document.querySelectorAll('.sm-category-toggle');
     if (categoryToggles.length === 0) {
-      logDebug('Twitter:Automation', '⚠️ No categories found, closing dialog');
+      logAutomation(`ACTION: REPLY FAILED - No categories found for @${author}`, { tweetId });
       closeReplyDialog();
       return false;
     }
     
     const firstCategory = categoryToggles[0];
+    const categoryName = firstCategory.querySelector('[style*="font-weight: 600"]')?.textContent || 'unknown';
     firstCategory.click();
-    logDebug('Twitter:Automation', '⏳ Category expanded, waiting for suggestions...');
+    logAutomation(`ACTION: Category "${categoryName}" expanded for @${author}`, { tweetId });
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Step 4: Find suggestions in the first category
     const categoryId = firstCategory.getAttribute('data-category-id');
     const categoryContent = document.getElementById(categoryId);
     if (!categoryContent) {
-      logDebug('Twitter:Automation', '⚠️ Category content not found, closing dialog');
+      logAutomation(`ACTION: REPLY FAILED - Category content not found for @${author}`, { tweetId });
       closeReplyDialog();
       return false;
     }
     
     const suggestions = categoryContent.querySelectorAll('.sm-suggestion');
     if (suggestions.length === 0) {
-      logDebug('Twitter:Automation', '⚠️ No suggestions found, closing dialog');
+      logAutomation(`ACTION: REPLY FAILED - No suggestions in category for @${author}`, { tweetId });
       closeReplyDialog();
       return false;
     }
@@ -308,30 +372,31 @@ async function performReply(tweet) {
     const maxIndex = Math.min(2, suggestions.length - 1);
     const randomIndex = Math.floor(Math.random() * (maxIndex + 1));
     const selectedSuggestion = suggestions[randomIndex];
+    const replyText = selectedSuggestion.textContent.substring(0, 60) + '...';
     
     selectedSuggestion.click();
-    logDebug('Twitter:Automation', '⏳ Suggestion selected, waiting for text insertion...');
+    logAutomation(`ACTION: Suggestion #${randomIndex + 1} selected for @${author}`, { tweetId, replyText });
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Step 6: Find and click Tweet button to send
     const tweetButton = document.querySelector('[data-testid="tweetButton"]');
     if (!tweetButton || tweetButton.disabled) {
-      logDebug('Twitter:Automation', '⚠️ Tweet button not found or disabled, closing dialog');
+      logAutomation(`ACTION: REPLY FAILED - Tweet button not found/disabled for @${author}`, { tweetId });
       closeReplyDialog();
       return false;
     }
     
     tweetButton.click();
-    logDebug('Twitter:Automation', '⏳ Sending reply...');
+    logAutomation(`ACTION: Reply sent to @${author}`, { tweetId });
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Step 7: Close dialog if still open
     closeReplyDialog();
     
-    logDebug('Twitter:Automation', '✅ Reply completed');
+    logAutomation(`ACTION: REPLY COMPLETE on @${author}`, { tweetId });
     return true;
   } catch (error) {
-    console.error('[SM Automation] Reply failed:', error);
+    logAutomation(`ACTION: REPLY ERROR on @${author}`, { tweetId, error: error.message });
     closeReplyDialog();
     return false;
   }
@@ -365,49 +430,53 @@ function scrollFeed() {
  */
 async function processPost(postData) {
   if (isProcessingPost) {
-    logDebug('Twitter:Automation', '⚠️ Already processing a post, skipping');
+    logAutomation('PROCESS: Already processing another post, skipping');
     return false;
   }
   
   isProcessingPost = true;
-  const { tweetId, tweet, shouldLike, shouldReply } = postData;
+  const { tweetId, tweet, author, text, shouldLike, shouldReply } = postData;
   
   try {
-    logDebug('Twitter:Automation', `📝 Processing post ${tweetId}`);
-    logDebug('Twitter:Automation', `   shouldLike: ${shouldLike}, shouldReply: ${shouldReply}`);
+    logAutomation(`PROCESS: Starting processing for @${author}`, { 
+      tweetId, 
+      shouldLike, 
+      shouldReply,
+      text
+    });
     
     // Action 1: Like (if needed)
     if (shouldLike === true) {
-      logDebug('Twitter:Automation', '   → Performing LIKE action');
-      const likeSuccess = await performLike(tweet);
+      logAutomation(`PROCESS: Executing LIKE for @${author}`, { tweetId });
+      const likeSuccess = await performLike(tweet, tweetId, author);
       if (!likeSuccess) {
-        logDebug('Twitter:Automation', '⚠️ Like failed, but continuing...');
+        logAutomation(`PROCESS: Like failed for @${author}, continuing...`, { tweetId });
       }
     } else {
-      logDebug('Twitter:Automation', '   → Skipping like (not recommended)');
+      logAutomation(`PROCESS: Skipping LIKE for @${author} (not recommended)`, { tweetId });
     }
     
     // Action 2: Reply (if needed)
     if (shouldReply === true) {
-      logDebug('Twitter:Automation', '   → Performing REPLY action');
-      const replySuccess = await performReply(tweet);
+      logAutomation(`PROCESS: Executing REPLY for @${author}`, { tweetId });
+      const replySuccess = await performReply(tweet, tweetId, author);
       if (!replySuccess) {
-        logDebug('Twitter:Automation', '⚠️ Reply failed');
+        logAutomation(`PROCESS: Reply failed for @${author}`, { tweetId });
       }
     } else {
-      logDebug('Twitter:Automation', '   → Skipping reply (not high-impact)');
+      logAutomation(`PROCESS: Skipping REPLY for @${author} (not high-impact)`, { tweetId });
     }
     
     // Mark this post as processed
     processedPostIds.add(tweetId);
-    logDebug('Twitter:Automation', `✅ Post ${tweetId} processing complete`);
+    logAutomation(`PROCESS: COMPLETE for @${author} - marked as processed`, { tweetId });
     
     // Scroll after processing to load new content for evaluation
     scrollFeed();
     
     return true;
   } catch (error) {
-    console.error('[SM Automation] Post processing error:', error);
+    logAutomation(`PROCESS: ERROR for @${author}`, { tweetId, error: error.message });
     return false;
   } finally {
     isProcessingPost = false;
@@ -420,19 +489,19 @@ async function processPost(postData) {
 async function runAutomationCycle() {
   if (!isAutomationRunning) return;
   if (isProcessingPost) {
-    logDebug('Twitter:Automation', '⚠️ Still processing previous post, waiting...');
+    logAutomation('CYCLE: Still processing previous post, waiting 5s...');
     automationTimeout = setTimeout(() => runAutomationCycle(), 5000);
     return;
   }
   
   try {
-    logDebug('Twitter:Automation', '🔄 Running automation cycle...');
+    logAutomation('CYCLE: ========== NEW CYCLE STARTING ==========');
     
     // Scan all visible posts
     const postsToProcess = scanPostsForActions();
     
     if (postsToProcess.length === 0) {
-      logDebug('Twitter:Automation', '📜 No posts to process, scrolling...');
+      logAutomation('CYCLE: No posts to process, scrolling for more content');
       scrollFeed();
       
       // Try again after scroll delay
@@ -444,6 +513,12 @@ async function runAutomationCycle() {
     
     // Process the FIRST post in the list
     const firstPost = postsToProcess[0];
+    logAutomation(`CYCLE: Processing first queued post - @${firstPost.author}`, {
+      tweetId: firstPost.tweetId,
+      shouldLike: firstPost.shouldLike,
+      shouldReply: firstPost.shouldReply
+    });
+    
     await processPost(firstPost);
     
     // Schedule next post processing with random delay (1-2 minutes)
@@ -451,14 +526,14 @@ async function runAutomationCycle() {
       const delay = getRandomDelay();
       const nextActionTime = Date.now() + delay;
       
-      logDebug('Twitter:Automation', `⏰ Next post in ${formatTime(delay)}`);
+      logAutomation(`CYCLE: Next cycle in ${formatTime(delay)}`, { delayMs: delay });
       updateTimerDisplay(nextActionTime);
       
       lastActionTime = Date.now();
       automationTimeout = setTimeout(() => runAutomationCycle(), delay);
     }
   } catch (error) {
-    console.error('[SM Automation] Cycle error:', error);
+    logAutomation('CYCLE: ERROR occurred', { error: error.message });
     
     // Retry in 30 seconds if error occurs
     if (isAutomationRunning) {
