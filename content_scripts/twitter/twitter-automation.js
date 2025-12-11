@@ -437,7 +437,7 @@ function closeReplyDialog() {
  */
 function scrollFeed() {
   window.scrollBy({
-    top: 800,
+    top: 400,
     behavior: 'smooth'
   });
   logDebug('Twitter:Automation', '📜 Scrolling feed...');
