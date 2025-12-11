@@ -268,8 +268,9 @@ async function performReply(tweet) {
     }
     
     replyStarterBtn.click();
-    logDebug('Twitter:Automation', '⏳ Waiting for AI replies to load (10 seconds)...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    const replyWaitTime = (window.SOCIALMONKEY_CONFIG?.AUTOMATION?.REPLY_STARTER_WAIT_SECONDS || 15) * 1000;
+    logDebug('Twitter:Automation', `⏳ Waiting for AI replies to load (${replyWaitTime/1000} seconds)...`);
+    await new Promise(resolve => setTimeout(resolve, replyWaitTime));
     
     // Step 3: Expand the first category
     const categoryToggles = document.querySelectorAll('.sm-category-toggle');

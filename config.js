@@ -33,6 +33,7 @@ const SOCIALMONKEY_CONFIG = {
     DELAY_RANGE_START_SECONDS: 60,  // 1 minute
     DELAY_RANGE_END_SECONDS: 120,   // 2 minutes
     SCROLL_DELAY_SECONDS: 3,        // 3 seconds between scrolls
+    REPLY_STARTER_WAIT_SECONDS: 15, // 15 seconds to wait for backend AI replies
   },
 
   // UI Text Labels
