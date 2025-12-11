@@ -156,7 +156,7 @@ function updateTimerDisplay(nextActionTime) {
  * Find tweets marked for liking (has Brand Relevance indicators)
  */
 function findTweetsToLike() {
-  // Look for tweets with like/repost/reply icons highlighted
+  // Look for tweets with like icons highlighted by backend
   const tweets = [];
   const allTweets = document.querySelectorAll('[data-testid="tweet"]');
   
@@ -164,19 +164,14 @@ function findTweetsToLike() {
     // Check if already processed
     if (tweet.hasAttribute('data-sm-auto-liked')) return;
     
-    // Find engagement row
-    const engagementRow = tweet.querySelector('[role="group"]');
-    if (!engagementRow) return;
+    // Check if tweet has the sm-recommend-like class (added by backend evaluation)
+    const hasRecommendedLike = tweet.querySelector('.sm-recommend-like');
+    if (!hasRecommendedLike) return;
     
-    // Check for like button that should be clicked (heart icon)
-    const likeButton = engagementRow.querySelector('[data-testid="like"]');
+    // Find like button
+    const likeButton = tweet.querySelector('[data-testid="like"]');
     if (likeButton) {
-      // Check if this tweet has relevance scoring (indicated by our markings)
-      // For now, we'll look for tweets that have visible engagement counts
-      const stats = tweet.textContent;
-      if (stats) {
-        tweets.push({ tweet, likeButton, action: 'like' });
-      }
+      tweets.push({ tweet, likeButton, action: 'like' });
     }
   });
   
@@ -256,8 +251,8 @@ async function performReply(tweetData) {
     // Click Reply Starter button
     replyStarterBtn.click();
     
-    // Wait for AI replies to load
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Wait for AI replies to load from backend (10 seconds)
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
     // Find first category's first 3 replies
     const replyOptions = document.querySelectorAll('.sm-reply-option');
@@ -282,6 +277,15 @@ async function performReply(tweetData) {
     if (tweetButton && !tweetButton.disabled) {
       tweetButton.click();
       logDebug('Twitter:Automation', '✅ Reply sent');
+      
+      // Wait for reply to be sent and dialog to close
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Try to close the dialog if still open
+      const closeButton = document.querySelector('[data-testid="app-bar-close"]');
+      if (closeButton) {
+        closeButton.click();
+      }
       
       // Mark as processed
       tweet.setAttribute('data-sm-auto-replied', 'true');
@@ -324,10 +328,24 @@ async function runAutomationCycle() {
     
     let actionPerformed = false;
     
-    // Priority: Reply first (more valuable), then like
+    // Priority: Reply first (more valuable), then like the same tweet if recommended
     if (tweetsToReply.length > 0) {
       const randomTweet = tweetsToReply[Math.floor(Math.random() * tweetsToReply.length)];
       actionPerformed = await performReply(randomTweet);
+      
+      // After replying, check if we should also like the same tweet
+      if (actionPerformed) {
+        const shouldAlsoLike = randomTweet.tweet.querySelector('.sm-recommend-like');
+        const notYetLiked = !randomTweet.tweet.hasAttribute('data-sm-auto-liked');
+        
+        if (shouldAlsoLike && notYetLiked) {
+          logDebug('Twitter:Automation', '👍 Also liking this tweet...');
+          const likeButton = randomTweet.tweet.querySelector('[data-testid="like"]');
+          if (likeButton) {
+            await performLike({ tweet: randomTweet.tweet, likeButton });
+          }
+        }
+      }
     } else if (tweetsToLike.length > 0) {
       const randomTweet = tweetsToLike[Math.floor(Math.random() * tweetsToLike.length)];
       actionPerformed = await performLike(randomTweet);
