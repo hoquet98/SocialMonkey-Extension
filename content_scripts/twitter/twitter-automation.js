@@ -276,12 +276,11 @@ function scanPostsForActions() {
       logAutomation(`SCAN: Tweet ${index} (@${author}) - LIKE RECOMMENDED`, { tweetId, text });
     }
     
-    // Check if backend marked as high-impact (should reply)
-    const hasHighImpact = tweet.querySelector('.sm-high-impact-badge');
-    if (hasHighImpact) {
-      const badge = hasHighImpact.textContent;
+    // Check if backend recommended a reply (icon has sm-recommend-reply class)
+    const hasRecommendedReply = tweet.querySelector('.sm-recommend-reply');
+    if (hasRecommendedReply) {
       actions.shouldReply = true;
-      logAutomation(`SCAN: Tweet ${index} (@${author}) - REPLY RECOMMENDED (${badge})`, { tweetId, text });
+      logAutomation(`SCAN: Tweet ${index} (@${author}) - REPLY RECOMMENDED`, { tweetId, text });
     }
     
     // Only add to list if there's at least one action to perform
