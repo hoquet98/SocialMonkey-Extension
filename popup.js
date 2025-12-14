@@ -52,6 +52,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const actionButton = document.getElementById('actionButton');
     const manageAccountLink = document.getElementById('manageAccountLink');
     const disconnectLink = document.getElementById('disconnectLink');
+    const automationToggle = document.getElementById('automationToggle');
+    const automationStatus = document.getElementById('automationStatus');
 
     console.log('[SocialMonkey Popup] All elements loaded successfully');
 
@@ -261,6 +263,62 @@ document.addEventListener('DOMContentLoaded', function() {
     actionButton.addEventListener('click', function() {
       // Open SocialMonkey dashboard in new tab
       chrome.tabs.create({ url: `${API_BASE_URL}/dashboard` });
+    });
+  }
+
+  // ==========================================
+  // AUTOMATION TOGGLE BUTTON
+  // ==========================================
+
+  if (automationToggle) {
+    // Update button state on popup open
+    updateAutomationButtonState();
+
+    automationToggle.addEventListener('click', function() {
+      console.log('[SocialMonkey Popup] Automation toggle clicked');
+      
+      // Send message to active tab to toggle automation
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (!tabs[0]) {
+          console.error('[SocialMonkey Popup] No active tab found');
+          return;
+        }
+
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'toggleAutomation' }, function(response) {
+          if (chrome.runtime.lastError) {
+            console.error('[SocialMonkey Popup] Error toggling automation:', chrome.runtime.lastError);
+            return;
+          }
+          
+          console.log('[SocialMonkey Popup] Automation toggled, running:', response?.running);
+          updateAutomationButtonState();
+        });
+      });
+    });
+  }
+
+  function updateAutomationButtonState() {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (!tabs[0]) return;
+
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'getAutomationStatus' }, function(response) {
+        if (chrome.runtime.lastError || !response) {
+          // Automation script not loaded or tab is not Twitter
+          automationStatus.textContent = '🤖 Start Automation';
+          automationToggle.disabled = false;
+          return;
+        }
+
+        if (response.running) {
+          automationStatus.textContent = '⏸️ Stop Automation';
+          automationToggle.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+          automationToggle.style.color = 'white';
+        } else {
+          automationStatus.textContent = '🤖 Start Automation';
+          automationToggle.style.background = '';
+          automationToggle.style.color = '';
+        }
+      });
     });
   }
 
