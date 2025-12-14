@@ -585,7 +585,7 @@ function startAutomation() {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
       title: 'SocialMonkey Automation Started',
-      message: 'Auto-engagement is now running. Press Ctrl+Alt+M to stop.'
+      message: 'Auto-engagement is now running. Press Ctrl+Shift+M to stop.'
     });
   }
 }
@@ -638,15 +638,15 @@ function toggleAutomation() {
 }
 
 /**
- * Listen for keyboard shortcut (Ctrl+Alt+M)
+ * Listen for keyboard shortcut (Ctrl+Shift+M)
  */
 document.addEventListener('keydown', (event) => {
-  // Ctrl+Alt+M
-  if (event.ctrlKey && event.altKey && event.key === 'm') {
+  // Ctrl+Shift+M
+  if (event.ctrlKey && event.shiftKey && event.key === 'M') {
     event.preventDefault();
     toggleAutomation();
   }
 }, { passive: false });
 
 // Log that automation is ready
-logDebug('Twitter:Automation', '✓ Automation ready. Press Ctrl+Alt+M to start/stop');
+logDebug('Twitter:Automation', '✓ Automation ready. Press Ctrl+Shift+M to start/stop');
