@@ -93,8 +93,10 @@ function getCurrentTwitterUsername() {
 
 /**
  * Extract complete tweet data from tweet element for inspiration saving
+ * @param {HTMLElement} tweetElement - The tweet DOM element
+ * @param {string} status - The inspiration status ('idea', 'viral', etc.)
  */
-function extractInspirationData(tweetElement) {
+function extractInspirationData(tweetElement, status = 'idea') {
   try {
     // Extract tweet ID and author from permalink
     let tweetId = null;
@@ -192,6 +194,7 @@ function extractInspirationData(tweetElement) {
     return {
       platform: 'twitter',
       twitter_username: twitterUsername,
+      status: status,
       tweet: {
         id: tweetId,
         text: text,
@@ -277,8 +280,8 @@ async function handleLightbulbClick(event, tweetElement, iconButton, iconDiv) {
     return;
   }
 
-  // Extract tweet data
-  const tweetData = extractInspirationData(tweetElement);
+  // Extract tweet data with 'idea' status
+  const tweetData = extractInspirationData(tweetElement, 'idea');
 
   if (!tweetData) {
     return;
@@ -300,6 +303,47 @@ async function handleLightbulbClick(event, tweetElement, iconButton, iconDiv) {
 
     // Update aria-label
     iconButton.setAttribute('aria-label', 'Saved as inspiration');
+  }
+}
+
+/**
+ * Check if tweet should be auto-saved as viral and save it
+ */
+async function checkAndSaveViralPost(tweetElement) {
+  // Skip if already saved as viral
+  if (tweetElement.hasAttribute('data-sm-viral-saved')) {
+    return;
+  }
+
+  // Get viral threshold from config
+  const viralThreshold = window.TWITTER_CONFIG?.VIRAL_POST_VIEW_THRESHOLD || 20000;
+  
+  // Skip if threshold is 0 (feature disabled)
+  if (viralThreshold === 0) {
+    return;
+  }
+
+  // Extract tweet data to check views
+  const tweetData = extractInspirationData(tweetElement, 'viral');
+  if (!tweetData || !tweetData.tweet) {
+    return;
+  }
+
+  // Check if views meet threshold
+  const views = tweetData.tweet.metrics?.views || 0;
+  if (views < viralThreshold) {
+    return;
+  }
+
+  // Save as viral inspiration
+  console.log(`[SM Inspirations] Auto-saving viral post with ${views.toLocaleString()} views (threshold: ${viralThreshold.toLocaleString()})`);
+  
+  const success = await saveAsInspiration(tweetData, null);
+  
+  if (success) {
+    // Mark as viral-saved to prevent duplicate saves
+    tweetElement.setAttribute('data-sm-viral-saved', 'true');
+    console.log(`[SM Inspirations] Viral post saved successfully: ${tweetData.tweet.permalink}`);
   }
 }
 
@@ -375,6 +419,9 @@ function addLightbulbIcon(tweetElement) {
 
   // Mark as processed
   tweetElement.setAttribute('data-sm-inspiration-processed', 'true');
+  
+  // Check if this post should be auto-saved as viral
+  checkAndSaveViralPost(tweetElement);
 }
 
 /**

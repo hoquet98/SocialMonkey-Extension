@@ -36,7 +36,15 @@ const TWITTER_CONFIG = {
   /**
    * Enable debug logging for evaluation system
    */
-  DEBUG_EVAL: true
+  DEBUG_EVAL: true,
+
+  /**
+   * Minimum view count threshold to automatically save posts as "viral" inspirations.
+   * Posts with views >= this threshold will be automatically saved.
+   * Set to 0 to disable auto-save of viral posts.
+   * Recommended: 20000-50000
+   */
+  VIRAL_POST_VIEW_THRESHOLD: 20000
 };
 
 // Export for use in other modules
