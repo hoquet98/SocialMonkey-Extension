@@ -6,7 +6,7 @@
  * - Processes posts sequentially (no simultaneous actions)
  * - Performs actions: like, reply (in order)
  * - Waits 1-2 minutes between each POST (not each action)
- * - Toggle on/off with Ctrl+Shift+M or Ctrl+Alt+M
+ * - Toggle on/off with Ctrl+Shift+M
  */
 
 logDebug('Twitter:Automation', '✓ Automation module loading...');
@@ -585,7 +585,7 @@ function startAutomation() {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
       title: 'SocialMonkey Automation Started',
-      message: 'Auto-engagement is now running. Press Ctrl+Shift+M or Ctrl+Alt+M to stop.'
+      message: 'Auto-engagement is now running. Press Ctrl+Shift+M to stop.'
     });
   }
 }
@@ -638,11 +638,11 @@ function toggleAutomation() {
 }
 
 /**
- * Listen for keyboard shortcuts (Ctrl+Shift+M or Ctrl+Alt+M)
+ * Listen for keyboard shortcuts (Ctrl+Shift+M)
  */
 document.addEventListener('keydown', (event) => {
-  // Ctrl+Shift+M or Ctrl+Alt+M
-  if (event.ctrlKey && (event.shiftKey || event.altKey) && event.key === 'M') {
+  // Ctrl+Shift+M
+  if (event.ctrlKey && event.shiftKey && event.key === 'M') {
     event.preventDefault();
     toggleAutomation();
   }
@@ -660,4 +660,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Log that automation is ready
-logDebug('Twitter:Automation', '✓ Automation ready. Press Ctrl+Shift+M or Ctrl+Alt+M to start/stop');
+logDebug('Twitter:Automation', '✓ Automation ready. Press Ctrl+Shift+M to start/stop');
