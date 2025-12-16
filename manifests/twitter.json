@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Twitter/X AI Reply & Tweet Ideas – Growth Assistant by SocialMonkey",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-powered reply ideas, tweet inspiration, and smart engagement tools to grow faster on Twitter/X.",
   "action": {
     "default_popup": "popup.html",
