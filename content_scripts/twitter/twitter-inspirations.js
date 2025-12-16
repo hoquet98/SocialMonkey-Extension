@@ -145,6 +145,17 @@ function extractInspirationData(tweetElement, status = 'idea') {
     let likes = 0, replies = 0, retweets = 0, views = 0;
 
     if (metricsContainer) {
+      // First, check the group's own aria-label which often contains views
+      // Format: "1 like, 24 views" or "13 views"
+      const groupAriaLabel = metricsContainer.getAttribute('aria-label') || '';
+      if (groupAriaLabel) {
+        const viewsMatch = groupAriaLabel.match(/([\d,]+)\s+views?/i);
+        if (viewsMatch) {
+          views = parseInt(viewsMatch[1].replace(/,/g, ''));
+        }
+      }
+      
+      // Extract other metrics from buttons
       const buttons = metricsContainer.querySelectorAll('[role="button"]');
       buttons.forEach(button => {
         const ariaLabel = button.getAttribute('aria-label') || '';
@@ -154,7 +165,6 @@ function extractInspirationData(tweetElement, status = 'idea') {
         if (ariaLabel.toLowerCase().includes('like')) likes = count;
         else if (ariaLabel.toLowerCase().includes('repl')) replies = count;
         else if (ariaLabel.toLowerCase().includes('repost') || ariaLabel.toLowerCase().includes('retweet')) retweets = count;
-        else if (ariaLabel.toLowerCase().includes('view')) views = count;
       });
     }
 
@@ -331,6 +341,10 @@ async function checkAndSaveViralPost(tweetElement) {
 
   // Check if views meet threshold
   const views = tweetData.tweet.metrics?.views || 0;
+  
+  // Debug log to see what we're comparing
+  console.log(`[SM Inspirations] Viral check - views: ${views} (${typeof views}), threshold: ${viralThreshold} (${typeof viralThreshold}), meets threshold: ${views >= viralThreshold}`);
+  
   if (views < viralThreshold) {
     return;
   }
