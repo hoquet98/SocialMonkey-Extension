@@ -170,8 +170,12 @@ function extractInspirationData(tweetElement, status = 'idea') {
 
     // Extract media (images/videos)
     const media = [];
+    
+    // Extract images
     const images = tweetElement.querySelectorAll('img[src*="media"]');
+    console.log(`[SM Inspirations] Found ${images.length} images in tweet`);
     images.forEach(img => {
+      console.log(`[SM Inspirations] Image src: ${img.src}`);
       if (!img.src.includes('profile_images')) {
         media.push({
           type: 'photo',
@@ -180,13 +184,26 @@ function extractInspirationData(tweetElement, status = 'idea') {
       }
     });
 
+    // Extract videos (use poster thumbnail)
     const videos = tweetElement.querySelectorAll('video');
+    console.log(`[SM Inspirations] Found ${videos.length} videos in tweet`);
     videos.forEach(video => {
-      media.push({
-        type: 'video',
-        url: video.src || video.poster
-      });
+      const posterUrl = video.getAttribute('poster');
+      const srcUrl = video.src;
+      console.log(`[SM Inspirations] Video - poster: ${posterUrl}, src: ${srcUrl}`);
+      
+      // Use poster (thumbnail) if available, it's a real URL
+      // video.src is often a blob URL which isn't useful
+      const videoUrl = posterUrl || srcUrl;
+      if (videoUrl && !videoUrl.startsWith('blob:')) {
+        media.push({
+          type: 'video',
+          url: videoUrl
+        });
+      }
     });
+    
+    console.log(`[SM Inspirations] Total media extracted: ${media.length}`, media);
 
     // Extract timestamp if available
     let createdAt = null;
